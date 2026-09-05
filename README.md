@@ -113,7 +113,8 @@ paraphrase drift. Everything before #3 is cache-warm.
 
 ## Tooling
 
-- [devbox](https://www.jetify.com/devbox) — `nodejs@22`, `just`
+- Nix flake devshell (`.envrc` / `use flake`) — `nodejs@22`, `just`,
+  [qahq](https://github.com/mlavrinenko/qahq)'s prebuilt **Rust jscpd**
 - [oxlint](https://oxc.rs/) — fast Rust linter (opencode's own lint)
 - [jscpd](https://github.com/kucherenko/jscpd) — copy-paste gate (`-k 50`)
 - [mindtape](https://github.com/mlavrinenko/mindtape) — task board in `tasks/` (`mt check`)
