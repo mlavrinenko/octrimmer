@@ -8,6 +8,25 @@ conversation verbatim — by position, role, or content phrase — so the model 
 matters (a poem, an API contract, a decision) by _copying_ it, never by re-generating it.
 Lossless for what you reference, lossy only for what you don't.
 
+## What you actually win
+
+**Window headroom and attention, not money.** Worth being blunt about, because the
+obvious guess is wrong. Against _not trimming at all_, a trim can cost slightly more: the
+tail you delete was the cheapest part of the context — already cached — and the summary
+replacing it is fresh tokens the provider reads again.
+
+What it buys is what tokens can't: forty messages of dead debug output stop competing for
+the model's attention with the one API contract that still matters, and a session headed
+for the context limit keeps going.
+
+Against the _other_ way of buying that — ordinary lossy compaction — it is both cheaper
+and better. Cheaper because a paraphrase is generated, and generated tokens bill at output
+rates; `[[#9]]` is copied by the harness and costs the model nothing to emit. Better
+because a paraphrase of a spec is not the spec, and what you reference here survives
+byte-for-byte.
+
+So: trim when the noise is hurting, not to save money.
+
 ## How it works
 
 `trim-context` takes a **start position** and a **summary template**. Everything from the
@@ -162,9 +181,10 @@ see the redundancy instead of looping.
 - **Compaction safety.** If opencode's native compaction removes an anchor message, the
   record is invalidated rather than crashing.
 - **Subagents** are allowed by default; state is per-session so nothing leaks across.
-- **Cache**: the prefix before the start position is unchanged → cache-warm. The baked
-  summary lives at the tail; it is re-sent per request but that is far cheaper than the
-  trimmed tokens.
+- **Cache**: the prefix before the start position is unchanged → cache-warm, and the
+  summary stabilises after one request, so steady-state cost is a wash. Cutting is not a
+  saving, though: the tokens you delete were cached, and the summary that replaces them
+  is not. See _What you actually win_.
 
 ## Tooling
 
