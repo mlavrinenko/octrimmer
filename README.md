@@ -36,6 +36,15 @@ cp dist/index.js <project>/.opencode/plugins/octrimmer.js
 Global trial install (reversible): `cp dist/index.js ~/.config/opencode/plugins/octrimmer.js`,
 remove the file to uninstall.
 
+## The skill
+
+`skills/octrimmer/` is an optional companion skill: `cp -r skills/octrimmer
+~/.config/opencode/skills/`. The tool's own description already teaches the
+syntax to any model that can see the tool, so the skill deliberately carries
+none of it — only the judgment calls (where to put the start, what to keep
+verbatim, when not to trim at all). Install it for models that trim badly;
+skip it otherwise.
+
 ## Smoke test (E2E recipe)
 
 Proven harness (opencode 1.18+, cheap model `opencode/mimo-v2.5-free`):
