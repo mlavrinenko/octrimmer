@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto"
 import type { PluginConfig } from "./config"
 import type { Logger } from "./logger"
+import { computeVisible } from "./overlay"
 import { saveSessionState } from "./persistence"
 import { ensureSessionInitialized, getSessionId } from "./session"
 import type { SessionState, TrimRecord } from "./state"
@@ -38,8 +39,8 @@ function createSyntheticSummary(base: WithParts, record: TrimRecord): WithParts 
 
 /**
  * Re-apply every trim record as an overlay on each outgoing fetch.
- * Raw session history is never modified: the summary is injected at each
- * record's start position and the covered messages are skipped. New messages
+ * Raw session history is never modified: summaries are injected at each
+ * record's start position and covered messages are skipped. New messages
  * appended after a record's end position are always kept. Idempotent by
  * construction — records are re-applied from the same raw list every time.
  */
@@ -78,22 +79,13 @@ export function createTransformHandler(
             return
         }
 
-        const sorted = [...state.records].toSorted((a, b) => a.startPosition - b.startPosition)
-        const covered = (position: number): boolean =>
-            state.records.some(
-                (record) => position >= record.startPosition && position <= record.endPosition,
-            )
-
+        const items = computeVisible(messages, state.records)
         const result: WithParts[] = []
-        for (let i = 0; i < messages.length; i++) {
-            const position = i + 1
-            for (const record of sorted) {
-                if (record.startPosition === position) {
-                    result.push(createSyntheticSummary(messages[i], record))
-                }
-            }
-            if (!covered(position)) {
-                result.push(messages[i])
+        for (const item of items) {
+            if (item.kind === "message" && item.message) {
+                result.push(item.message)
+            } else if (item.kind === "summary" && item.record) {
+                result.push(createSyntheticSummary(messages[0], item.record))
             }
         }
 

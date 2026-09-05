@@ -1,22 +1,10 @@
 import { describe, expect, it } from "vitest"
 import { createTransformHandler } from "../lib/transform"
-import { createSessionState, type TrimRecord } from "../lib/state"
-import { makeTextMessage, silentLogger, testConfig } from "./helpers"
+import { createSessionState } from "../lib/state"
+import { makeRecord, makeTextMessage, silentLogger, testConfig } from "./helpers"
 import type { WithParts } from "../lib/types"
 
-function record(startRawId: string, start: number, end: number, summary: string): TrimRecord {
-    return {
-        startRawId,
-        startPosition: start,
-        endPosition: end,
-        expandedSummary: summary,
-        originMessageId: "origin",
-        refs: [],
-        createdAt: 1,
-    }
-}
-
-async function applyTransform(records: TrimRecord[], msgs: WithParts[]) {
+async function applyTransform(records: ReturnType<typeof makeRecord>[], msgs: WithParts[]) {
     const state = createSessionState()
     state.sessionId = "s1"
     state.records = records
@@ -36,7 +24,10 @@ const messages = () => [
 
 describe("transform overlay", () => {
     it("replaces a region with the summary, keeps prefix and tail", async () => {
-        const { messages: out } = await applyTransform([record("m3", 3, 4, "SUMMARY")], messages())
+        const { messages: out } = await applyTransform(
+            [makeRecord("m3", 3, 4, "SUMMARY")],
+            messages(),
+        )
 
         expect(out.map((m) => m.info.id)).toEqual([
             "m1",
@@ -53,7 +44,7 @@ describe("transform overlay", () => {
 
     it("keeps messages appended after the end position", async () => {
         const { messages: out } = await applyTransform(
-            [record("m3", 3, 4, "SUMMARY")],
+            [makeRecord("m3", 3, 4, "SUMMARY")],
             [...messages(), makeTextMessage("m6", "user", "new")],
         )
 
@@ -68,7 +59,7 @@ describe("transform overlay", () => {
 
     it("handles nested records", async () => {
         const { messages: out } = await applyTransform(
-            [record("m2", 2, 5, "SUMMARY_A"), record("m4", 4, 6, "SUMMARY_B")],
+            [makeRecord("m2", 2, 5, "SUMMARY_A"), makeRecord("m4", 4, 6, "SUMMARY_B")],
             [...messages(), makeTextMessage("m6", "user", "new")],
         )
 
@@ -87,7 +78,7 @@ describe("transform overlay", () => {
             makeTextMessage("m5", "assistant", "continue"),
         ]
         const { state, messages: out } = await applyTransform(
-            [record("m3", 3, 4, "SUMMARY")],
+            [makeRecord("m3", 3, 4, "SUMMARY")],
             compacted,
         )
 

@@ -1,6 +1,7 @@
 import type { MessagePart, WithParts } from "../lib/types"
 import type { Logger } from "../lib/logger"
 import type { PluginConfig } from "../lib/config"
+import type { TrimRecord } from "../lib/state"
 
 export const testConfig: PluginConfig = {
     enabled: true,
@@ -18,6 +19,23 @@ export const silentLogger = {
 
 function makePart(id: string, sessionID: string, extra: Record<string, unknown>): MessagePart {
     return { id, sessionID, messageID: id, ...extra } as unknown as MessagePart
+}
+
+export function makeRecord(
+    startRawId: string,
+    start: number,
+    end: number,
+    summary: string,
+): TrimRecord {
+    return {
+        startRawId,
+        startPosition: start,
+        endPosition: end,
+        expandedSummary: summary,
+        originMessageId: "origin",
+        refs: [],
+        createdAt: 1,
+    }
 }
 
 export function makeTextMessage(

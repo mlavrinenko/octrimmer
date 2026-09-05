@@ -1,5 +1,5 @@
-import type { WithParts } from "./types"
-import { renderMessage, renderMessageLastText, renderMessageText } from "./render"
+import { renderMessageLastText, renderMessageText } from "./render"
+import type { VisibleItem } from "./overlay"
 
 export type Picker = "whole" | "text" | "last-text"
 export type RefKind = "position" | "range" | "role" | "pattern"
@@ -133,52 +133,59 @@ function parseRef(inner: string): { parsed: ParsedRef | null; error?: string } {
     return { parsed: { ref: inner, kind: "pattern", pattern: target, picker } }
 }
 
-function renderWithPicker(message: WithParts, picker: Picker): string {
+function renderItem(item: VisibleItem, picker: Picker): string {
+    if (item.kind === "summary") {
+        return item.text
+    }
+    const message = item.message
+    if (!message) {
+        return ""
+    }
     switch (picker) {
         case "text":
             return renderMessageText(message)
         case "last-text":
             return renderMessageLastText(message)
         default:
-            return renderMessage(message)
+            return item.text
     }
 }
 
 function resolveAt(
     position: number,
     picker: Picker,
-    messages: WithParts[],
+    items: VisibleItem[],
 ): { text: string; rawIds: string[]; error?: string } {
-    const message = messages[position - 1]
-    if (!message) {
+    const item = items[position - 1]
+    if (!item) {
         return {
             text: "",
             rawIds: [],
-            error: `no message at #${position} (session has ${messages.length})`,
+            error: `no entry at #${position} (context has ${items.length})`,
         }
     }
-    return { text: renderWithPicker(message, picker), rawIds: [message.info.id] }
+    return { text: renderItem(item, picker), rawIds: item.rawId ? [item.rawId] : [] }
 }
 
 function resolveRole(
     role: RoleKey,
     picker: Picker,
-    messages: WithParts[],
+    items: VisibleItem[],
 ): { text: string; rawIds: string[]; error?: string } {
     const wantRole = role.endsWith("user") ? "user" : "assistant"
     const wantLast = role.startsWith("last")
-    let found: WithParts | undefined
+    let found: VisibleItem | undefined
     if (wantLast) {
-        for (let i = messages.length - 1; i >= 0; i--) {
-            if (messages[i]?.info.role === wantRole) {
-                found = messages[i]
+        for (let i = items.length - 1; i >= 0; i--) {
+            if (items[i]?.kind === "message" && items[i].role === wantRole) {
+                found = items[i]
                 break
             }
         }
     } else {
-        for (const message of messages) {
-            if (message.info.role === wantRole) {
-                found = message
+        for (const item of items) {
+            if (item.kind === "message" && item.role === wantRole) {
+                found = item
                 break
             }
         }
@@ -186,47 +193,44 @@ function resolveRole(
     if (!found) {
         return { text: "", rawIds: [], error: `no ${wantRole} message found` }
     }
-    return { text: renderWithPicker(found, picker), rawIds: [found.info.id] }
+    return { text: renderItem(found, picker), rawIds: found.rawId ? [found.rawId] : [] }
 }
 
 function resolvePattern(
     pattern: string,
     picker: Picker,
-    messages: WithParts[],
+    items: VisibleItem[],
 ): { text: string; rawIds: string[]; error?: string } {
     const needle = pattern.toLowerCase()
-    const matches: Array<{ position: number; message: WithParts }> = []
-    for (let i = 0; i < messages.length; i++) {
-        const message = messages[i]
-        if (message && renderMessage(message).toLowerCase().includes(needle)) {
-            matches.push({ position: i + 1, message })
+    const matches: Array<{ position: number; item: VisibleItem }> = []
+    for (const item of items) {
+        if (item.text.toLowerCase().includes(needle)) {
+            matches.push({ position: item.position, item })
         }
     }
     if (matches.length === 0) {
-        return { text: "", rawIds: [], error: `no message contains "${pattern}"` }
+        return { text: "", rawIds: [], error: `no entry contains "${pattern}"` }
     }
     if (matches.length > 1) {
         return {
             text: "",
             rawIds: [],
-            error: `"${pattern}" matches ${matches.length} messages: ${matches
+            error: `"${pattern}" matches ${matches.length} entries: ${matches
                 .map((match) => `#${match.position}`)
                 .join(", ")} — use #N instead`,
         }
     }
-    return {
-        text: renderWithPicker(matches[0].message, picker),
-        rawIds: [matches[0].message.info.id],
-    }
+    const item = matches[0].item
+    return { text: renderItem(item, picker), rawIds: item.rawId ? [item.rawId] : [] }
 }
 
 function resolveParsed(
     parsed: ParsedRef,
-    messages: WithParts[],
+    items: VisibleItem[],
 ): { text: string; rawIds: string[]; error?: string } {
     switch (parsed.kind) {
         case "position":
-            return resolveAt(parsed.position ?? 0, parsed.picker, messages)
+            return resolveAt(parsed.position ?? 0, parsed.picker, items)
         case "range": {
             const chunks: string[] = []
             const rawIds: string[] = []
@@ -235,7 +239,7 @@ function resolveParsed(
                 position <= (parsed.rangeEnd ?? 0);
                 position++
             ) {
-                const resolved = resolveAt(position, parsed.picker, messages)
+                const resolved = resolveAt(position, parsed.picker, items)
                 if (resolved.error) {
                     return resolved
                 }
@@ -245,18 +249,19 @@ function resolveParsed(
             return { text: chunks.join("\n\n"), rawIds }
         }
         case "role":
-            return resolveRole(parsed.role ?? "last-assistant", parsed.picker, messages)
+            return resolveRole(parsed.role ?? "last-assistant", parsed.picker, items)
         case "pattern":
-            return resolvePattern(parsed.pattern ?? "", parsed.picker, messages)
+            return resolvePattern(parsed.pattern ?? "", parsed.picker, items)
     }
 }
 
 /**
- * Expand a template against a snapshot of messages. Pure and deterministic:
- * a fixed template and snapshot always produce the same result. Pulled content
+ * Expand a template against the visible context (the conversation as the
+ * model sees it, including earlier trim summaries). Pure and deterministic:
+ * a fixed template and context always produce the same result. Pulled content
  * is never rescanned (no nesting, no cycles). Errors abort the whole expansion.
  */
-export function expandTemplate(template: string, messages: WithParts[]): ExpansionResult {
+export function expandTemplate(template: string, items: VisibleItem[]): ExpansionResult {
     const tokens = tokenize(template)
     const refs: Array<{ ref: string; rawId: string }> = []
     const errors: Array<{ ref: string; reason: string }> = []
@@ -275,7 +280,7 @@ export function expandTemplate(template: string, messages: WithParts[]): Expansi
             out.push(`[[${token.inner}]]`)
             continue
         }
-        const resolved = resolveParsed(parsed, messages)
+        const resolved = resolveParsed(parsed, items)
         if (resolved.error) {
             errors.push({ ref: token.inner, reason: resolved.error })
             continue

@@ -47,7 +47,7 @@ Session has 8 messages. Last 3:
 
 | You write                               | You get                                                                                                          |
 | --------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `[[#12]]`                               | whole message at session position #12, verbatim                                                                  |
+| `[[#12]]`                               | whole message at context position #12, verbatim                                                                  |
 | `[[#12:text]]`                          | only the text parts of #12                                                                                       |
 | `[[#12:last-text]]`                     | the final text part of #12                                                                                       |
 | `[[#8..#14]]`                           | every message from #8 to #14, verbatim                                                                           |
@@ -56,7 +56,7 @@ Session has 8 messages. Last 3:
 | `\[[`                                   | a literal `[[`                                                                                                   |
 
 Plain prose with no references is a normal lossy summary (like built-in compaction).
-Positions are **stable session positions** (the message store is append-only), learned from
+Positions are **stable context positions** — the conversation as the model sees it, including earlier trim summaries — learned from
 the ref list — no IDs are injected. References resolve against the pre-trim conversation;
 a message inside the trimmed region survives only because it was copied first. If any
 reference fails, **nothing is trimmed** and every failing reference is reported with the

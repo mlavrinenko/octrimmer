@@ -1,11 +1,11 @@
-import type { WithParts } from "./types"
-import { renderMessage } from "./render"
+import type { VisibleItem } from "./overlay"
 
 export interface RefEntry {
     position: number
+    kind: string
     role: string
     snippet: string
-    rawId: string
+    rawId?: string
 }
 
 function summarize(text: string, max = 120): string {
@@ -16,21 +16,26 @@ function summarize(text: string, max = 120): string {
     return oneLine.length > max ? `${oneLine.slice(0, max - 1)}…` : oneLine
 }
 
-/** Ref map for the tail of the session. Positions are 1-based and stable. */
-export function buildRefMap(messages: WithParts[], count: number): RefEntry[] {
-    const total = messages.length
+/**
+ * Ref map over the VISIBLE context (what the model sees, including earlier
+ * trim summaries). Positions are context positions, 1-based and stable until
+ * the next trim.
+ */
+export function buildRefMap(items: VisibleItem[], count: number): RefEntry[] {
+    const total = items.length
     const start = Math.max(0, total - count)
     const entries: RefEntry[] = []
     for (let i = start; i < total; i++) {
-        const message = messages[i]
-        if (!message) {
+        const item = items[i]
+        if (!item) {
             continue
         }
         entries.push({
-            position: i + 1,
-            role: message.info.role,
-            snippet: summarize(renderMessage(message)),
-            rawId: message.info.id,
+            position: item.position,
+            kind: item.kind,
+            role: item.kind === "summary" ? "summary" : (item.role ?? "?"),
+            snippet: summarize(item.text),
+            rawId: item.rawId,
         })
     }
     return entries
