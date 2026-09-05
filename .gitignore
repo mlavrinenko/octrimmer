@@ -1,0 +1,6 @@
+node_modules/
+dist/
+.mindtape/cache/
+*.log
+.DS_Store
+.direnv/

@@ -1,0 +1,58 @@
+{
+    "$schema": "https://json.schemastore.org/package.json",
+    "name": "octrimmer",
+    "version": "0.1.0",
+    "type": "module",
+    "description": "Manual context trimmer for OpenCode. Cut from a start point; keep prior content verbatim by reference — never re-generate it.",
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "import": "./dist/index.js"
+        }
+    },
+    "scripts": {
+        "clean": "rm -rf dist",
+        "build": "npm run clean && tsup && tsc --emitDeclarationOnly",
+        "typecheck": "tsc --noEmit",
+        "lint": "oxlint",
+        "test": "vitest run",
+        "format": "prettier --write .",
+        "format:check": "prettier --check .",
+        "check": "npm run format:check && npm run lint && npm run typecheck && npm test",
+        "dev": "opencode plugin dev"
+    },
+    "keywords": [
+        "opencode",
+        "opencode-plugin",
+        "plugin",
+        "context",
+        "trim",
+        "compaction",
+        "tokens"
+    ],
+    "peerDependencies": {
+        "@opencode-ai/plugin": ">=1.4.3"
+    },
+    "dependencies": {
+        "@opencode-ai/sdk": "^1.4.3"
+    },
+    "devDependencies": {
+        "@opencode-ai/plugin": "^1.4.3",
+        "@types/node": "^25.5.0",
+        "jscpd": "^4.0.5",
+        "oxlint": "^1.60.0",
+        "prettier": "^3.8.1",
+        "tsup": "^8.5.1",
+        "tsx": "^4.21.0",
+        "typescript": "^6.0.2",
+        "vitest": "^3.0.0"
+    },
+    "files": [
+        "dist/",
+        "README.md",
+        "LICENSE"
+    ],
+    "license": "MIT"
+}
