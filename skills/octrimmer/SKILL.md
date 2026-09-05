@@ -36,8 +36,11 @@ anything already written to a file.
 
 ## Do not trim
 
-- Over work in progress. The region reaches the end of the conversation, so a
-  cut above live work destroys it.
+- Over work in progress, or just before you answer. The region reaches the end
+  of the conversation, so a cut above live work takes the material you were
+  about to reply with. Trim between tasks, not inside one — and if you are a
+  subagent, your final message is the deliverable, so trim before you build it
+  or not at all.
 - A short session — nothing to reclaim.
 - Twice for the same ground. When the reply says the region was already
   summarized, the trim is done. Resume the task; reach for the tool again once
