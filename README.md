@@ -21,20 +21,17 @@ model learns what it can address from the tool's own output.
 
 ## Installation
 
+Not on npm yet, so install the built bundle by hand. Plugins load as _files_,
+not directories (opencode 1.18+), and `dist/index.js` is self-contained — no
+`node_modules` at the destination:
+
 ```bash
-opencode plugin octrimmer --global
+npm run build
+cp dist/index.js ~/.config/opencode/plugins/octrimmer.js   # global
+cp dist/index.js <project>/.opencode/plugins/octrimmer.js  # one project
 ```
 
-Local development install (opencode 1.18+): plugins load as _files_, not
-directories — build once (`npm run build`, dist is self-contained, no
-node_modules needed) and drop the bundle into a project:
-
-```
-cp dist/index.js <project>/.opencode/plugins/octrimmer.js
-```
-
-Global trial install (reversible): `cp dist/index.js ~/.config/opencode/plugins/octrimmer.js`,
-remove the file to uninstall.
+Uninstall by removing the file.
 
 ## The skill
 
@@ -157,7 +154,12 @@ see the redundancy instead of looping.
   messages after the trim are kept.
 - **References are baked** at trim time (frozen snapshot), matching DCP's `(bN)` expansion.
 - **Multiple trims nest.** Later trims can cover earlier ones; summaries compose.
-- **Compaction safety.** If opencode's native compaction removes the anchor message, the
+- **Spans are addressed by message ID**, never by index. Native compaction and reverts
+  shift every position in the list; a record that stored numbers would then cover a
+  different stretch of the conversation without any error to show for it.
+- **State is per session**, held as a map of in-flight loads, because one plugin instance
+  serves a whole opencode server — parent and subagents, concurrently.
+- **Compaction safety.** If opencode's native compaction removes an anchor message, the
   record is invalidated rather than crashing.
 - **Subagents** are allowed by default; state is per-session so nothing leaks across.
 - **Cache**: the prefix before the start position is unchanged → cache-warm. The baked

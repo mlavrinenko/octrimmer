@@ -1,7 +1,7 @@
 import type { Plugin } from "@opencode-ai/plugin"
 import { getConfig } from "./lib/config"
 import { Logger } from "./lib/logger"
-import { createSessionState } from "./lib/state"
+import { createSessionStore } from "./lib/state"
 import { createTransformHandler } from "./lib/transform"
 import { createTrimContextTool } from "./lib/trim-tool"
 
@@ -12,19 +12,19 @@ const server: Plugin = (async (ctx) => {
     }
 
     const logger = new Logger()
-    const state = createSessionState()
+    const store = createSessionStore()
 
     return {
         "experimental.chat.messages.transform": createTransformHandler(
             ctx.client,
-            state,
+            store,
             logger,
             config,
         ) as any,
         tool: {
             "trim-context": createTrimContextTool({
                 client: ctx.client,
-                state,
+                store,
                 logger,
                 config,
             }),

@@ -11,11 +11,18 @@ export interface VisibleItem {
     kind: "message" | "summary"
     message?: WithParts
     rawId?: string
-    rawPosition?: number
+    rawIndex?: number
     role?: "user" | "assistant"
     text: string
     record?: TrimRecord
     position: number
+}
+
+/** A record resolved against a concrete message list: 0-based, end inclusive. */
+export interface TrimSpan {
+    record: TrimRecord
+    start: number
+    end: number
 }
 
 /** No records present: the visible list is exactly the raw message list. */
@@ -24,7 +31,7 @@ export function toVisibleItems(messages: WithParts[]): VisibleItem[] {
         kind: "message",
         message,
         rawId: message.info.id,
-        rawPosition: index + 1,
+        rawIndex: index,
         role: message.info.role,
         text: renderMessage(message),
         position: index + 1,
@@ -32,34 +39,56 @@ export function toVisibleItems(messages: WithParts[]): VisibleItem[] {
 }
 
 /**
- * Re-apply every trim record as an overlay: summaries are injected at each
- * record's raw start position, covered raw messages are skipped, newer
- * messages survive. Records whose anchor message vanished are ignored
- * (the transform persists their removal).
+ * Resolve every record against THIS message list, by ID. A record whose start
+ * or end anchor is gone (native compaction, a revert) resolves to nothing
+ * rather than to a stale index range — the list shifts under a record, the
+ * IDs in it do not. Callers treat an unresolved record as invalid and drop it.
+ */
+export function resolveSpans(messages: WithParts[], records: TrimRecord[]): TrimSpan[] {
+    const indexById = new Map<string, number>()
+    messages.forEach((message, index) => indexById.set(message.info.id, index))
+
+    const spans: TrimSpan[] = []
+    for (const record of records) {
+        const start = indexById.get(record.startRawId)
+        const end = indexById.get(record.endRawId)
+        if (start === undefined || end === undefined || end < start) {
+            continue
+        }
+        spans.push({ record, start, end })
+    }
+    return spans.toSorted((a, b) => a.start - b.start)
+}
+
+/**
+ * Re-apply every trim record as an overlay: summaries are injected where each
+ * record's start anchor sits, covered messages are skipped, newer messages
+ * survive. Records that no longer resolve are ignored (the transform persists
+ * their removal).
  */
 export function computeVisible(messages: WithParts[], records: TrimRecord[]): VisibleItem[] {
-    const valid = records.filter((record) =>
-        messages.some((message) => message.info.id === record.startRawId),
-    )
-    const sorted = [...valid].toSorted((a, b) => a.startPosition - b.startPosition)
-    const covered = (position: number): boolean =>
-        valid.some((record) => position >= record.startPosition && position <= record.endPosition)
+    const spans = resolveSpans(messages, records)
+    const covered = (index: number): boolean =>
+        spans.some((span) => index >= span.start && index <= span.end)
 
     const items: Array<Omit<VisibleItem, "position">> = []
-    for (let i = 0; i < messages.length; i++) {
-        const position = i + 1
-        for (const record of sorted) {
-            if (record.startPosition === position) {
-                items.push({ kind: "summary", text: record.expandedSummary, record })
+    for (let index = 0; index < messages.length; index++) {
+        for (const span of spans) {
+            if (span.start === index) {
+                items.push({
+                    kind: "summary",
+                    text: span.record.expandedSummary,
+                    record: span.record,
+                })
             }
         }
-        if (!covered(position)) {
-            const message = messages[i]
+        if (!covered(index)) {
+            const message = messages[index]
             items.push({
                 kind: "message",
                 message,
                 rawId: message.info.id,
-                rawPosition: position,
+                rawIndex: index,
                 role: message.info.role,
                 text: renderMessage(message),
             })

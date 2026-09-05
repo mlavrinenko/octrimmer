@@ -4,15 +4,19 @@ export interface TrimRef {
 }
 
 /**
- * One bounded trim: everything from `startPosition` to `endPosition`
- * (1-based, inclusive, positions at trim time) is replaced by
- * `expandedSummary`. Raw messages are never removed from the session store;
- * this record is re-applied as an overlay on every fetch.
+ * One bounded trim: everything from the message `startRawId` to the message
+ * `endRawId` (inclusive) is replaced by `expandedSummary`. Raw messages are
+ * never removed from the session store; this record is re-applied as an
+ * overlay on every fetch.
+ *
+ * The span is addressed by message ID, never by position: native compaction
+ * and reverts drop messages ahead of the anchor, and an index recorded at trim
+ * time would then silently point at a different message. IDs either resolve or
+ * they do not.
  */
 export interface TrimRecord {
     startRawId: string
-    startPosition: number
-    endPosition: number
+    endRawId: string
     expandedSummary: string
     originMessageId: string
     refs: TrimRef[]
@@ -20,17 +24,24 @@ export interface TrimRecord {
 }
 
 export interface SessionState {
-    sessionId: string | null
+    sessionId: string
     isSubAgent: boolean
     records: TrimRecord[]
 }
 
-export function createSessionState(): SessionState {
-    return { sessionId: null, isSubAgent: false, records: [] }
+/**
+ * Per-session state for the whole plugin process. One opencode server runs one
+ * plugin instance for every session it serves — parent and subagents alike, in
+ * parallel — so state cannot live in a single slot keyed by "the current
+ * session": two interleaved turns would each overwrite the other's records.
+ *
+ * The map holds the in-flight PROMISE, not the resolved state, so concurrent
+ * callers for one session share a single load instead of racing two.
+ */
+export interface SessionStore {
+    sessions: Map<string, Promise<SessionState>>
 }
 
-export function resetSessionState(state: SessionState): void {
-    state.sessionId = null
-    state.isSubAgent = false
-    state.records = []
+export function createSessionStore(): SessionStore {
+    return { sessions: new Map() }
 }

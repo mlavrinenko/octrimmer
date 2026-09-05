@@ -1,10 +1,10 @@
 import { createHash } from "node:crypto"
 import type { PluginConfig } from "./config"
 import type { Logger } from "./logger"
-import { computeVisible } from "./overlay"
+import { computeVisible, resolveSpans } from "./overlay"
 import { saveSessionState } from "./persistence"
-import { ensureSessionInitialized, getSessionId } from "./session"
-import type { SessionState, TrimRecord } from "./state"
+import { getSessionId, getSessionState } from "./session"
+import type { SessionStore, TrimRecord } from "./state"
 import type { WithParts } from "./types"
 
 function generateStableId(prefix: string, seed: string): string {
@@ -40,13 +40,13 @@ function createSyntheticSummary(base: WithParts, record: TrimRecord): WithParts 
 /**
  * Re-apply every trim record as an overlay on each outgoing fetch.
  * Raw session history is never modified: summaries are injected at each
- * record's start position and covered messages are skipped. New messages
- * appended after a record's end position are always kept. Idempotent by
+ * record's start anchor and covered messages are skipped. New messages
+ * appended after a record's end anchor are always kept. Idempotent by
  * construction — records are re-applied from the same raw list every time.
  */
 export function createTransformHandler(
     client: unknown,
-    state: SessionState,
+    store: SessionStore,
     logger: Logger,
     config: PluginConfig,
 ) {
@@ -60,7 +60,7 @@ export function createTransformHandler(
         if (!sessionId) {
             return
         }
-        await ensureSessionInitialized(client, state, sessionId, logger, messages)
+        const state = await getSessionState(client, store, sessionId, logger)
         if (state.isSubAgent && !config.allowSubAgents) {
             return
         }
@@ -68,11 +68,11 @@ export function createTransformHandler(
             return
         }
 
-        // Drop records whose anchor message vanished (e.g. native compaction).
-        const presentIds = new Set(messages.map((message) => message.info.id))
-        const before = state.records.length
-        state.records = state.records.filter((record) => presentIds.has(record.startRawId))
-        if (state.records.length !== before) {
+        // Drop records that no longer resolve against this list (e.g. native
+        // compaction took an anchor with it).
+        const spans = resolveSpans(messages, state.records)
+        if (spans.length !== state.records.length) {
+            state.records = spans.map((span) => span.record)
             await saveSessionState(state, logger)
         }
         if (state.records.length === 0) {

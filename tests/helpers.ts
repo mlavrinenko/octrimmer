@@ -1,7 +1,7 @@
 import type { MessagePart, WithParts } from "../lib/types"
 import type { Logger } from "../lib/logger"
 import type { PluginConfig } from "../lib/config"
-import type { TrimRecord } from "../lib/state"
+import { createSessionStore, type SessionState, type TrimRecord } from "../lib/state"
 
 export const testConfig: PluginConfig = {
     enabled: true,
@@ -21,16 +21,18 @@ function makePart(id: string, sessionID: string, extra: Record<string, unknown>)
     return { id, sessionID, messageID: id, ...extra } as unknown as MessagePart
 }
 
-export function makeRecord(
-    startRawId: string,
-    start: number,
-    end: number,
-    summary: string,
-): TrimRecord {
+/** A store already holding one resolved session, bypassing the disk load. */
+export function makeStore(sessionId: string, records: TrimRecord[] = []) {
+    const state: SessionState = { sessionId, isSubAgent: false, records }
+    const store = createSessionStore()
+    store.sessions.set(sessionId, Promise.resolve(state))
+    return { store, state }
+}
+
+export function makeRecord(startRawId: string, endRawId: string, summary: string): TrimRecord {
     return {
         startRawId,
-        startPosition: start,
-        endPosition: end,
+        endRawId,
         expandedSummary: summary,
         originMessageId: "origin",
         refs: [],

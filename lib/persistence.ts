@@ -18,9 +18,6 @@ function getSessionFilePath(sessionId: string): string {
 }
 
 export async function saveSessionState(state: SessionState, logger: Logger): Promise<void> {
-    if (!state.sessionId) {
-        return
-    }
     try {
         if (!existsSync(STORAGE_DIR)) {
             await fs.mkdir(STORAGE_DIR, { recursive: true })
@@ -82,8 +79,7 @@ function isTrimRecord(value: unknown): value is TrimRecord {
     const record = value as Record<string, unknown>
     return (
         typeof record.startRawId === "string" &&
-        typeof record.startPosition === "number" &&
-        typeof record.endPosition === "number" &&
+        typeof record.endRawId === "string" &&
         typeof record.expandedSummary === "string" &&
         typeof record.originMessageId === "string"
     )

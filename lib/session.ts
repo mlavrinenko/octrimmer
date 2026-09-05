@@ -1,5 +1,5 @@
 import type { Logger } from "./logger"
-import { resetSessionState, type SessionState } from "./state"
+import type { SessionState, SessionStore } from "./state"
 import { filterMessages, type WithParts } from "./types"
 import { loadSessionState } from "./persistence"
 
@@ -39,21 +39,38 @@ export function getSessionId(messages: WithParts[]): string | null {
     return null
 }
 
-export async function ensureSessionInitialized(
+async function initSessionState(
     client: unknown,
-    state: SessionState,
     sessionId: string,
     logger: Logger,
-    _messages: WithParts[],
-): Promise<void> {
-    if (state.sessionId === sessionId) {
-        return
+): Promise<SessionState> {
+    const [isSubAgent, records] = await Promise.all([
+        isSubAgentSession(client, sessionId),
+        loadSessionState(sessionId, logger),
+    ])
+    return { sessionId, isSubAgent, records: records ?? [] }
+}
+
+/**
+ * The state for one session, loaded at most once. Every caller for the same
+ * session awaits the same promise, so two concurrent turns cannot each start a
+ * load and clobber one another. A failed load is evicted rather than cached,
+ * so the next call retries instead of inheriting a poisoned entry.
+ */
+export function getSessionState(
+    client: unknown,
+    store: SessionStore,
+    sessionId: string,
+    logger: Logger,
+): Promise<SessionState> {
+    const existing = store.sessions.get(sessionId)
+    if (existing) {
+        return existing
     }
-    resetSessionState(state)
-    state.sessionId = sessionId
-    state.isSubAgent = await isSubAgentSession(client, sessionId)
-    const records = await loadSessionState(sessionId, logger)
-    if (records) {
-        state.records = records
-    }
+    const pending = initSessionState(client, sessionId, logger).catch((error: unknown) => {
+        store.sessions.delete(sessionId)
+        throw error
+    })
+    store.sessions.set(sessionId, pending)
+    return pending
 }

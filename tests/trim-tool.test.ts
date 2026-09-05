@@ -1,7 +1,14 @@
 import { describe, expect, it } from "vitest"
 import { createTrimContextTool } from "../lib/trim-tool"
-import { createSessionState, type TrimRecord } from "../lib/state"
-import { makeRecord, makeTextMessage, makeToolMessage, silentLogger, testConfig } from "./helpers"
+import type { TrimRecord } from "../lib/state"
+import {
+    makeRecord,
+    makeStore,
+    makeTextMessage,
+    makeToolMessage,
+    silentLogger,
+    testConfig,
+} from "./helpers"
 import type { WithParts } from "../lib/types"
 
 function fakeClient(getMessages: () => unknown) {
@@ -27,12 +34,10 @@ function makeToolCtx(sessionID: string) {
 }
 
 function makeTool(sessionID: string, messages: () => unknown, records: TrimRecord[] = []) {
-    const state = createSessionState()
-    state.records = records
-    state.sessionId = sessionID
+    const { store, state } = makeStore(sessionID, records)
     const tool = createTrimContextTool({
         client: fakeClient(messages),
-        state,
+        store,
         logger: silentLogger,
         config: testConfig,
     })
@@ -83,8 +88,7 @@ describe("trim-context tool", () => {
         expect(state.records).toHaveLength(1)
         const record = state.records[0]
         expect(record.startRawId).toBe("m3")
-        expect(record.startPosition).toBe(3)
-        expect(record.endPosition).toBe(8)
+        expect(record.endRawId).toBe("m8")
         expect(record.expandedSummary).toContain("whispering your name")
         expect(record.expandedSummary).toContain("Write me a poem about rain.")
         expect(record.expandedSummary).toContain("Then we refactored auth")
@@ -107,7 +111,7 @@ describe("trim-context tool", () => {
             makeTextMessage("m9", "user", "new work"),
             makeTextMessage("m10", "assistant", "done more"),
         ]
-        const preloaded = [makeRecord("m3", 3, 10, "OLD SUMMARY")]
+        const preloaded = [makeRecord("m3", "m10", "OLD SUMMARY")]
         const { tool, state } = makeTool("s-cover", () => messages, preloaded)
         const ctx = makeToolCtx("s-cover")
         void ctx
@@ -121,14 +125,13 @@ describe("trim-context tool", () => {
         expect(result).toContain("Replaced everything from #2")
         expect(state.records).toHaveLength(1)
         expect(state.records[0].startRawId).toBe("m2")
-        expect(state.records[0].startPosition).toBe(2)
-        expect(state.records[0].endPosition).toBe(10)
+        expect(state.records[0].endRawId).toBe("m10")
         expect(state.records[0].expandedSummary).toContain("whispering your name")
         expect(state.records[0].expandedSummary).not.toContain("OLD SUMMARY")
     })
 
     it("refuses a start that points at a summary entry from an earlier trim", async () => {
-        const preloaded = [makeRecord("m3", 3, 8, "OLD SUMMARY")]
+        const preloaded = [makeRecord("m3", "m8", "OLD SUMMARY")]
         const { tool } = makeTool("s-summary", poem, preloaded)
         await expect(
             tool.execute({ start: "#3", summary: "x" }, makeToolCtx("s-summary")),
@@ -163,7 +166,7 @@ describe("trim-context tool", () => {
             makeTextMessage("m9", "user", "new work"),
             makeTextMessage("m10", "assistant", "done more"),
         ]
-        const preloaded = [makeRecord("m3", 3, 8, "OLD SUMMARY")]
+        const preloaded = [makeRecord("m3", "m8", "OLD SUMMARY")]
         const { tool, state } = makeTool("s-overlap", () => messages, preloaded)
 
         // visible: m1, m2, summary, m9, m10 -> #4 is m9 (a real message after the summary)

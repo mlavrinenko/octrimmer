@@ -1,16 +1,16 @@
 import { tool } from "@opencode-ai/plugin"
 import type { PluginConfig } from "./config"
 import type { Logger } from "./logger"
-import { computeVisible } from "./overlay"
+import { computeVisible, resolveSpans } from "./overlay"
 import { saveSessionState } from "./persistence"
 import { buildRefMap, parsePosition } from "./refs"
-import { ensureSessionInitialized, fetchSessionMessages } from "./session"
-import type { SessionState, TrimRecord } from "./state"
+import { fetchSessionMessages, getSessionState } from "./session"
+import type { SessionStore, TrimRecord } from "./state"
 import { expandTemplate } from "./template"
 
 export interface TrimToolContext {
     client: unknown
-    state: SessionState
+    store: SessionStore
     logger: Logger
     config: PluginConfig
 }
@@ -62,9 +62,7 @@ do not paraphrase or re-output it. To write a literal "[[", escape it as "\\[[".
 
 References resolve against the pre-trim context; a reference to an entry
 inside the trimmed region survives only because it is copied first. If any
-reference fails, nothing is trimmed and every failing reference is reported.
-If everything from #N to the end was already trimmed, the call reports that
-and changes nothing.`
+reference fails, nothing is trimmed and every failing reference is reported.`
 
 export function createTrimContextTool(ctx: TrimToolContext): ReturnType<typeof tool> {
     return tool({
@@ -108,9 +106,9 @@ async function executeTrim(
     }
 
     const raw = await fetchSessionMessages(ctx.client, sessionId)
-    await ensureSessionInitialized(ctx.client, ctx.state, sessionId, ctx.logger, raw)
+    const state = await getSessionState(ctx.client, ctx.store, sessionId, ctx.logger)
 
-    const visible = computeVisible(raw, ctx.state.records)
+    const visible = computeVisible(raw, state.records)
     const count =
         typeof args.count === "number" && Number.isInteger(args.count) && args.count > 0
             ? args.count
@@ -144,17 +142,8 @@ async function executeTrim(
         )
     }
     const startRawId = startItem.rawId
-    const startRawPosition = startItem.rawPosition ?? startPos
-    const endPosition = raw.length
-
-    // Already trimmed to the end from this exact message: nothing new to do.
-    if (
-        ctx.state.records.some(
-            (record) => record.startRawId === startRawId && record.endPosition === endPosition,
-        )
-    ) {
-        return `Already trimmed from #${startPos} to the end with this exact start — nothing new. Add new messages or pick a different start.`
-    }
+    const startIndex = startItem.rawIndex ?? startPos - 1
+    const endRawId = raw[raw.length - 1].info.id
 
     const expansion = expandTemplate(args.summary, visible)
     if (expansion.errors.length > 0) {
@@ -166,22 +155,22 @@ async function executeTrim(
     }
 
     // Cover-replace: any earlier record that starts at/after the new start is
-    // fully inside the new region — drop it so summaries never stack.
-    ctx.state.records = ctx.state.records.filter(
-        (record) => record.startPosition < startRawPosition,
-    )
+    // fully inside the new region — drop it so summaries never stack. Records
+    // that no longer resolve are dropped here too.
+    state.records = resolveSpans(raw, state.records)
+        .filter((span) => span.start < startIndex)
+        .map((span) => span.record)
 
     const record: TrimRecord = {
         startRawId,
-        startPosition: startRawPosition,
-        endPosition,
+        endRawId,
         expandedSummary: expansion.text,
         originMessageId: toolCtx.messageID,
         refs: expansion.refs,
         createdAt: Date.now(),
     }
-    ctx.state.records.push(record)
-    await saveSessionState(ctx.state, ctx.logger)
+    state.records.push(record)
+    await saveSessionState(state, ctx.logger)
 
     const prefixNote =
         startPos > 1
