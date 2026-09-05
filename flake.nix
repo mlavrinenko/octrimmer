@@ -34,6 +34,11 @@
           nativeBuildInputs = [
             pkgs.nodejs_22
             pkgs.just
+            # `just e2e` reads opencode's JSON event stream and the trim
+            # records back with jq; shellcheck keeps the script it lives in
+            # under the same gate as the TypeScript.
+            pkgs.jq
+            pkgs.shellcheck
             # The Rust jscpd port, prebuilt on qahq's Cachix.
             qahq.packages.${system}.jscpd
           ];

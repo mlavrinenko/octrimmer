@@ -61,32 +61,51 @@ none of it — only the judgment calls (where to put the start, what to keep
 verbatim, when not to trim at all). Install it for models that trim badly;
 skip it otherwise.
 
-## Smoke test (E2E recipe)
+## End-to-end check
 
-Proven harness (opencode 1.18+, cheap model `opencode/mimo-v2.5-free`):
+`just e2e` drives a real opencode and a real model through three scenarios and
+prints a scorecard. Needs `opencode` on PATH, credentials for the model, and
+`jq`; `just build` runs first.
 
 ```bash
-cd ~/projects/home/octrimmer && direnv exec . npm run build
-T=$(mktemp -d) && mkdir -p "$T/.opencode/plugins"
-cp dist/index.js "$T/.opencode/plugins/octrimmer.js"
-cd "$T"
-
-# 1. Boot + registration. A comma-list probe, not conditional phrasing
-#    ("say TRIM-PRESENT if...") — weak models hallucinate conditionals:
-opencode run "List your available tools as a comma list." --model opencode/mimo-v2.5-free
-
-# 2. Poem scenario:
-opencode run 'Write a 4-line poem about rain. Then call trim-context with
-  no args and read the list, then call trim-context with start pointing at
-  your poem message and a summary that keeps the poem verbatim via [[#N]].
-  Reply DONE.' --model opencode/mimo-v2.5-free
+just e2e                             # default model, opencode/mimo-v2.5-free
+just e2e anthropic/claude-haiku-4-5  # any provider/model opencode can reach
+KEEP=1 just e2e                      # keep the sandbox to poke at
 ```
 
-Verify: `~/.local/share/opencode/storage/plugin/octrimmer/<session>.json`
-holds **exactly one** record whose `expandedSummary` contains the poem
-byte-for-byte; the raw message store is untouched; a continuation turn
-(`--session <id>`) shows **one** summary and re-trimming the same start is
-rejected ("is a [summary] entry").
+```
+[1/3] tool registration
+  PASS  trim-context is offered to the model
+[2/3] trim with a verbatim reference
+  PASS  the model called trim-context          2 calls on attempt 1 of 3
+  PASS  a trim record was persisted            ses_f8d6540d8ffe9zeKoWeiSXcGj2.json
+  PASS  no two records share an anchor         1 record(s), 1 distinct anchor(s)
+  PASS  spans addressed by message id          msg_0729abf5f… → msg_0729added…
+  PASS  pulled content survives byte-for-byte  longest verbatim span: 422 bytes
+[3/3] re-trim is refused
+  PASS  re-trimming the same start is rejected attempt 1 of 3
+  PASS  the refused trim wrote nothing         1 → 1 records
+```
+
+It runs in a sandbox with its own `XDG_CONFIG_HOME` and `XDG_DATA_HOME`, so
+the only plugin loaded is the bundle under test and the records read back are
+this run's. Credentials are the one thing borrowed from the real profile, by
+symlink rather than copy. Nothing is written outside the sandbox, which is
+deleted unless you pass `KEEP=1`.
+
+Two things it deliberately does not assert. **How many records exist** — a
+model that trims twice further down the conversation is not misbehaving; what
+must never happen is two records anchored on the same message, and that is the
+check. **Whether the model used a reference at all** — that is reported as a
+statistic, because a weaker model should read as a worse score rather than as
+a broken plugin. When it does use one, the verbatim guarantee is enforced: the
+longest span of real conversation text found unchanged inside the summary is
+measured and must clear 25 bytes.
+
+Small models wander, so each scenario retries (`E2E_ATTEMPTS`, default 3) and
+reports the attempt it succeeded on — needing three goes is itself a finding.
+A scenario that fails because the model never made the call says so, separately
+from one where the plugin let a bad call through.
 
 ## Usage
 
@@ -195,7 +214,8 @@ see the redundancy instead of looping.
 - [mindtape](https://github.com/mlavrinenko/mindtape) — task board in `tasks/` (`mt check`)
 - [vitest](https://vitest.dev) — tests
 
-Gate: `just check` (prettier, oxlint, `tsc --noEmit`, vitest, jscpd, `mt check`).
+Gate: `just check` (prettier, oxlint, shellcheck, `tsc --noEmit`, vitest, jscpd, `mt check`).
+The model-driven `just e2e` is separate — it spends real calls.
 
 ## Prior art
 
