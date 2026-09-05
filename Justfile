@@ -17,10 +17,12 @@ typecheck:
 test:
     npm test
 
-# jscpd: refuse duplicated blocks of >=50 tokens. Fix by extracting a helper,
-# never by shuffling tokens until the detector loses the scent.
+# jscpd (the Rust port, packaged via qahq in flake.nix) fails on any
+# duplicated block of >=50 tokens, naming both spans. Fix a finding by
+# extracting a shared helper — never by shuffling tokens until the detector
+# loses the scent.
 jscpd:
-    jscpd --silent --noTips -k 50 -f typescript --exitCode 1 index.ts lib tests
+    jscpd --no-tips -k 50 -f typescript --exit-code 1 index.ts lib tests
 
 # Validate the mindtape task board.
 tasks-check:

@@ -16,7 +16,7 @@
         "clean": "rm -rf dist",
         "build": "npm run clean && tsup && tsc --emitDeclarationOnly",
         "typecheck": "tsc --noEmit",
-        "lint": "oxlint",
+        "lint": "oxlint index.ts lib tests",
         "test": "vitest run",
         "format": "prettier --write .",
         "format:check": "prettier --check .",
