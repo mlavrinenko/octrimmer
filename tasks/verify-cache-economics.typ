@@ -2,7 +2,7 @@
 
 #show: task.with(
   title: "Verify: cache economics",
-  status: proposed(2026, 9, 5),
+  status: done(2026, 9, 5),
 )
 
 == Summary

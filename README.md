@@ -33,6 +33,36 @@ node_modules needed) and drop the bundle into a project:
 cp dist/index.js <project>/.opencode/plugins/octrimmer.js
 ```
 
+Global trial install (reversible): `cp dist/index.js ~/.config/opencode/plugins/octrimmer.js`,
+remove the file to uninstall.
+
+## Smoke test (E2E recipe)
+
+Proven harness (opencode 1.18+, cheap model `opencode/mimo-v2.5-free`):
+
+```bash
+cd ~/projects/home/octrimmer && direnv exec . npm run build
+T=$(mktemp -d) && mkdir -p "$T/.opencode/plugins"
+cp dist/index.js "$T/.opencode/plugins/octrimmer.js"
+cd "$T"
+
+# 1. Boot + registration. A comma-list probe, not conditional phrasing
+#    ("say TRIM-PRESENT if...") — weak models hallucinate conditionals:
+opencode run "List your available tools as a comma list." --model opencode/mimo-v2.5-free
+
+# 2. Poem scenario:
+opencode run 'Write a 4-line poem about rain. Then call trim-context with
+  no args and read the list, then call trim-context with start pointing at
+  your poem message and a summary that keeps the poem verbatim via [[#N]].
+  Reply DONE.' --model opencode/mimo-v2.5-free
+```
+
+Verify: `~/.local/share/opencode/storage/plugin/octrimmer/<session>.json`
+holds **exactly one** record whose `expandedSummary` contains the poem
+byte-for-byte; the raw message store is untouched; a continuation turn
+(`--session <id>`) shows **one** summary and re-trimming the same start is
+rejected ("is a [summary] entry").
+
 ## Usage
 
 The model calls `trim-context` in two modes:
