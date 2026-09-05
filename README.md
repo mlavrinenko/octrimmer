@@ -25,7 +25,13 @@ model learns what it can address from the tool's own output.
 opencode plugin octrimmer --global
 ```
 
-(dev): `npm install && just check && opencode plugin dev`
+Local development install (opencode 1.18+): plugins load as _files_, not
+directories — build once (`npm run build`, dist is self-contained, no
+node_modules needed) and drop the bundle into a project:
+
+```
+cp dist/index.js <project>/.opencode/plugins/octrimmer.js
+```
 
 ## Usage
 
@@ -96,6 +102,14 @@ then the region #3..#8 is replaced. The next request the model sees:
 
 The poem survives by copy, not reconstruction — zero tokens spent re-outputting it, no
 paraphrase drift. Everything before #3 is cache-warm.
+
+## Re-trimming
+
+A trim that starts at or inside an already-trimmed region is rejected ("#N is a
+[summary] entry"). A trim that starts _before_ an earlier trim replaces it
+(cover-replace — the old summary is dropped, not stacked). A trim that starts
+after an earlier summary trims only the new tail and says so, so the model can
+see the redundancy instead of looping.
 
 ## Design notes
 

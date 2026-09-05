@@ -191,5 +191,12 @@ async function executeTrim(
         expansion.refs.length > 0
             ? `\nPulled verbatim: ${expansion.refs.map((entry) => `[${entry.ref}]`).join(", ")}.`
             : ""
-    return `Replaced everything from #${startPos} to the end of the conversation with your summary. ${prefixNote}${refNote}`
+    const priorSummaries = visible.filter(
+        (item) => item.kind === "summary" && item.position < startPos,
+    )
+    const overlapNote =
+        priorSummaries.length > 0
+            ? `\nNote: earlier content was already summarized at #${priorSummaries[priorSummaries.length - 1].position}; this trim covers only the messages after it.`
+            : ""
+    return `Replaced everything from #${startPos} to the end of the conversation with your summary. ${prefixNote}${refNote}${overlapNote}`
 }

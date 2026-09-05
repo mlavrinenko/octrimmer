@@ -157,6 +157,25 @@ describe("trim-context tool", () => {
         )
     })
 
+    it("notes redundancy when the new trim starts after an earlier summary", async () => {
+        const messages = [
+            ...poemConversation,
+            makeTextMessage("m9", "user", "new work"),
+            makeTextMessage("m10", "assistant", "done more"),
+        ]
+        const preloaded = [makeRecord("m3", 3, 8, "OLD SUMMARY")]
+        const { tool, state } = makeTool("s-overlap", () => messages, preloaded)
+
+        // visible: m1, m2, summary, m9, m10 -> #4 is m9 (a real message after the summary)
+        const result = await tool.execute(
+            { start: "#4", summary: "new tail work" },
+            makeToolCtx("s-overlap"),
+        )
+
+        expect(result).toContain("already summarized at #3")
+        expect(state.records).toHaveLength(2)
+    })
+
     it("degrades to a plain lossy summary with no references", async () => {
         const { tool, state } = makeTool("s-plain", poem)
         const result = await tool.execute(
