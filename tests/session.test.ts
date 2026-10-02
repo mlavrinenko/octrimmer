@@ -75,6 +75,15 @@ describe("persistence", () => {
         expect(loaded?.map((record) => record.expandedSummary)).toEqual(["OLD"])
     })
 
+    it("drops a record with no createdAt: the summary message is stamped with it", async () => {
+        const { createdAt: _dropped, ...undated } = makeRecord("m1", "m2", "UNDATED")
+        await saveSessionState(
+            { sessionId: "s-undated", records: [undated as never] },
+            silentLogger,
+        )
+        expect(await loadSessionState("s-undated", silentLogger)).toEqual([])
+    })
+
     it("returns null for a session that was never saved", async () => {
         expect(await loadSessionState("s-never", silentLogger)).toBeNull()
     })
