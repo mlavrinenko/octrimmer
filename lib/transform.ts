@@ -1,5 +1,4 @@
 import { createHash } from "node:crypto"
-import type { PluginConfig } from "./config"
 import type { Logger } from "./logger"
 import { computeVisible } from "./overlay"
 import { getSessionId, getSessionState } from "./session"
@@ -68,12 +67,7 @@ function createSyntheticSummary(base: WithParts, record: TrimRecord): WithParts 
  * appended after a record's end anchor are always kept. Idempotent by
  * construction — records are re-applied from the same raw list every time.
  */
-export function createTransformHandler(
-    client: unknown,
-    store: SessionStore,
-    logger: Logger,
-    config: PluginConfig,
-) {
+export function createTransformHandler(store: SessionStore, logger: Logger) {
     return async (_input: unknown, output: { messages: WithParts[] }) => {
         const messages = output.messages
         if (!Array.isArray(messages) || messages.length === 0) {
@@ -84,10 +78,7 @@ export function createTransformHandler(
         if (!sessionId) {
             return
         }
-        const state = await getSessionState(client, store, sessionId, logger)
-        if (state.isSubAgent && !config.allowSubAgents) {
-            return
-        }
+        const state = await getSessionState(store, sessionId, logger)
         if (state.records.length === 0) {
             return
         }

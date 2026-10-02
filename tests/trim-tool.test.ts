@@ -1,14 +1,7 @@
 import { describe, expect, it } from "vitest"
 import { createTrimContextTool } from "../lib/trim-tool"
 import type { TrimRecord } from "../lib/state"
-import {
-    makeRecord,
-    makeStore,
-    makeTextMessage,
-    makeToolMessage,
-    silentLogger,
-    testConfig,
-} from "./helpers"
+import { makeRecord, makeStore, makeTextMessage, makeToolMessage, silentLogger } from "./helpers"
 import type { WithParts } from "../lib/types"
 
 function fakeClient(getMessages: () => unknown) {
@@ -39,7 +32,6 @@ function makeTool(sessionID: string, messages: () => unknown, records: TrimRecor
         client: fakeClient(messages),
         store,
         logger: silentLogger,
-        config: testConfig,
     })
     return { tool, state }
 }

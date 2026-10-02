@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest"
 import { saveSessionState } from "../lib/persistence"
 import { createTransformHandler } from "../lib/transform"
-import { makeRecord, makeStore, makeTextMessage, silentLogger, testConfig } from "./helpers"
+import { makeRecord, makeStore, makeTextMessage, silentLogger } from "./helpers"
 import type { WithParts } from "../lib/types"
 
 vi.mock("../lib/persistence", async (importOriginal) => ({
@@ -11,7 +11,7 @@ vi.mock("../lib/persistence", async (importOriginal) => ({
 
 async function applyTransform(records: ReturnType<typeof makeRecord>[], msgs: WithParts[]) {
     const { store, state } = makeStore("s1", records)
-    const handler = createTransformHandler({}, store, silentLogger, testConfig)
+    const handler = createTransformHandler(store, silentLogger)
     const output = { messages: msgs }
     await handler({}, output)
     return { state, messages: output.messages }

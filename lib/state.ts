@@ -27,7 +27,6 @@ export interface TrimRecord {
 
 export interface SessionState {
     sessionId: string
-    isSubAgent: boolean
     records: TrimRecord[]
 }
 

@@ -1,14 +1,6 @@
 import type { MessagePart, WithParts } from "../lib/types"
 import type { Logger } from "../lib/logger"
-import type { PluginConfig } from "../lib/config"
 import { createSessionStore, type SessionState, type TrimRecord } from "../lib/state"
-
-export const testConfig: PluginConfig = {
-    enabled: true,
-    permission: "allow",
-    allowSubAgents: true,
-    refMapSize: 20,
-}
 
 export const silentLogger = {
     info: () => undefined,
@@ -23,7 +15,7 @@ function makePart(id: string, sessionID: string, extra: Record<string, unknown>)
 
 /** A store already holding one resolved session, bypassing the disk load. */
 export function makeStore(sessionId: string, records: TrimRecord[] = []) {
-    const state: SessionState = { sessionId, isSubAgent: false, records }
+    const state: SessionState = { sessionId, records }
     const store = createSessionStore()
     store.sessions.set(sessionId, Promise.resolve(state))
     return { store, state }

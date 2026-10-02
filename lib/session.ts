@@ -15,21 +15,6 @@ export async function fetchSessionMessages(
     return filterMessages(response?.data)
 }
 
-export async function isSubAgentSession(client: unknown, sessionId: string): Promise<boolean> {
-    try {
-        const result = await (
-            client as {
-                session: {
-                    get(args: { path: { id: string } }): Promise<{ data?: { parentID?: string } }>
-                }
-            }
-        ).session.get({ path: { id: sessionId } })
-        return Boolean(result?.data?.parentID)
-    } catch {
-        return false
-    }
-}
-
 export function getSessionId(messages: WithParts[]): string | null {
     for (const message of messages) {
         if (typeof message.info.sessionID === "string" && message.info.sessionID.length > 0) {
@@ -39,16 +24,9 @@ export function getSessionId(messages: WithParts[]): string | null {
     return null
 }
 
-async function initSessionState(
-    client: unknown,
-    sessionId: string,
-    logger: Logger,
-): Promise<SessionState> {
-    const [isSubAgent, records] = await Promise.all([
-        isSubAgentSession(client, sessionId),
-        loadSessionState(sessionId, logger),
-    ])
-    return { sessionId, isSubAgent, records: records ?? [] }
+async function initSessionState(sessionId: string, logger: Logger): Promise<SessionState> {
+    const records = await loadSessionState(sessionId, logger)
+    return { sessionId, records: records ?? [] }
 }
 
 /**
@@ -58,7 +36,6 @@ async function initSessionState(
  * so the next call retries instead of inheriting a poisoned entry.
  */
 export function getSessionState(
-    client: unknown,
     store: SessionStore,
     sessionId: string,
     logger: Logger,
@@ -67,7 +44,7 @@ export function getSessionState(
     if (existing) {
         return existing
     }
-    const pending = initSessionState(client, sessionId, logger).catch((error: unknown) => {
+    const pending = initSessionState(sessionId, logger).catch((error: unknown) => {
         store.sessions.delete(sessionId)
         throw error
     })

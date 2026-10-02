@@ -221,7 +221,6 @@ trims again to cut further back.
   serves a whole opencode server — parent and subagents, concurrently.
 - **Compaction safety.** A record whose anchor is missing from the list opencode hands the
   transform (native compaction sends only the head) is skipped, never deleted.
-- **Subagents** are allowed by default; state is per-session so nothing leaks across.
 - **Cache**: the prefix before the start position is unchanged → cache-warm, and the
   summary stabilises after one request, so steady-state cost is a wash. Cutting is not a
   saving, though: the tokens you delete were cached, and the summary that replaces them

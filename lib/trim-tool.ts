@@ -1,5 +1,4 @@
 import { tool } from "@opencode-ai/plugin"
-import type { PluginConfig } from "./config"
 import type { Logger } from "./logger"
 import { computeVisible, resolveSpans } from "./overlay"
 import { saveSessionState } from "./persistence"
@@ -9,11 +8,13 @@ import type { SessionStore, TrimRecord } from "./state"
 import { expandTemplate } from "./template"
 import type { WithParts } from "./types"
 
+/** How many recent entries the ref map lists when `count` is not given. */
+const DEFAULT_LIST_SIZE = 20
+
 export interface TrimToolContext {
     client: unknown
     store: SessionStore
     logger: Logger
-    config: PluginConfig
 }
 
 interface ToolRunContext {
@@ -99,7 +100,9 @@ export function createTrimContextTool(ctx: TrimToolContext): ReturnType<typeof t
             count: tool.schema
                 .number()
                 .optional()
-                .describe("How many recent entries to list in the ref map. Default 20."),
+                .describe(
+                    `How many recent entries to list in the ref map. Default ${DEFAULT_LIST_SIZE}.`,
+                ),
         },
         async execute(args, toolCtx) {
             return executeTrim(ctx, args as TrimArgs, toolCtx as unknown as ToolRunContext)
@@ -143,13 +146,13 @@ async function executeTrim(
     }
 
     const raw = await fetchSessionMessages(ctx.client, sessionId)
-    const state = await getSessionState(ctx.client, ctx.store, sessionId, ctx.logger)
+    const state = await getSessionState(ctx.store, sessionId, ctx.logger)
 
     const visible = computeVisible(raw, state.records)
     const count =
         typeof args.count === "number" && Number.isInteger(args.count) && args.count > 0
             ? args.count
-            : ctx.config.refMapSize
+            : DEFAULT_LIST_SIZE
     const refMap = buildRefMap(visible, count)
 
     if (args.start === undefined || args.start === "") {
