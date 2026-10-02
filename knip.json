@@ -1,5 +1,6 @@
 {
     "$schema": "https://unpkg.com/knip@6/schema.json",
-    "project": ["lib/**/*.ts", "tests/**/*.ts", "*.config.ts"],
-    "ignoreDependencies": ["oxlint", "prettier"]
+    "entry": ["docs/facts.ts"],
+    "project": ["docs/**/*.ts", "lib/**/*.ts", "tests/**/*.ts", "*.config.ts"],
+    "ignoreDependencies": ["oxlint", "prettier", "tsx"]
 }

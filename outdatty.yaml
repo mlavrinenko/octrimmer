@@ -1,0 +1,23 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/mlavrinenko/outdatty/main/schema/outdatty.schema.json
+
+# Last resort against drift: what code can produce, docs/facts.ts generates.
+# What it cannot — prose describing behaviour — is listed here. A change to a
+# source fails `just check` until its dependents are reviewed and the review
+# is recorded with `just outdatty-update`.
+
+# A group means "review these when that changes", not "this file is known";
+# tests, tooling and tasks have no prose to review.
+require_tracked: ["!**"]
+
+groups:
+    - name: behaviour
+      source:
+          - lib/overlay.ts
+          - lib/render.ts
+          - lib/session.ts
+          - lib/template.ts
+          - lib/transform.ts
+          - lib/trim-tool.ts
+      dependents:
+          - docs/readme.typ
+          - skills/octrimmer/SKILL.md

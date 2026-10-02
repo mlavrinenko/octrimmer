@@ -6,14 +6,14 @@ default: check
 # silent when green and printing its whole report when red. `e2e` is
 # deliberately out: it spends real model calls and needs credentials.
 [parallel]
-check: fmt-check lint knip shellcheck typecheck test jscpd tasks-check
+check: fmt-check lint knip shellcheck typecheck test jscpd tasks-check docs-check outdatty-check
 
 fmt-check:
     npx prettier --check --log-level warn .
 
 # Every rule at error, warnings denied: see .oxlintrc.json.
 lint:
-    out=$(npx oxlint --deny-warnings index.ts lib tests *.config.ts 2>&1) || { printf '%s\n' "$out"; exit 1; }
+    out=$(npx oxlint --deny-warnings index.ts lib tests docs *.config.ts 2>&1) || { printf '%s\n' "$out"; exit 1; }
 
 # Dead code: unused files, exports, types, class members and dependencies.
 # Fix a finding by cutting, not by ignoring; knip.json carries the entries.
@@ -35,7 +35,7 @@ test:
 # extracting a shared helper — never by shuffling tokens until the detector
 # loses the scent.
 jscpd:
-    out=$(jscpd --no-tips -k 50 -f typescript --exit-code 1 -r ai index.ts lib tests 2>&1) || { printf '%s\n' "$out"; exit 1; }
+    out=$(jscpd --no-tips -k 50 -f typescript --exit-code 1 -r ai index.ts lib tests docs 2>&1) || { printf '%s\n' "$out"; exit 1; }
 
 # Validate the mindtape task board.
 tasks-check:
@@ -54,3 +54,30 @@ build:
 e2e model="" *args: build
     MODEL="${MODEL:-{{ model }}}" \
       bash scripts/e2e.sh {{ args }}
+
+# README.md is rendered from docs/readme.typ. Its examples come from running
+# the plugin (docs/facts.ts), never from typing them.
+[doc("Render README.md from docs/readme.typ")]
+docs: (render-readme "README.md")
+
+# Renders into a temp directory and diffs: regenerating in place would heal a
+# hand-edited README before anything compared it.
+docs-check:
+    tmp=$(mktemp -d) && just render-readme "$tmp/README.md" && diff -u README.md "$tmp/README.md"; rc=$?; rm -rf "$tmp"; exit $rc
+
+[private]
+render-readme out:
+    mkdir -p docs/generated
+    npx tsx docs/facts.ts docs/generated/facts.json
+    typlite --root . docs/readme.typ {{ out }}
+
+# Prose that describes behaviour must be re-read when the behaviour changes;
+# see outdatty.yaml.
+outdatty-check:
+    out=$(outdatty check 2>&1) || { printf '%s\n' "$out"; exit 1; }
+
+# Record that the dependents of a changed source were reviewed. A recorded
+# hash is a review claim: run it after reading them, not to silence the gate.
+[doc("Record the review of outdatty.yaml's dependents")]
+outdatty-update:
+    outdatty update

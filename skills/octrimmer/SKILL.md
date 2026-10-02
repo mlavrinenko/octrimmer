@@ -24,8 +24,8 @@ description: >-
 
 ```
 start:   "#14"
-summary: "## API contract (verbatim)\n[[#9]]\n\nDebugged the 401, cause was a
-          stale clock skew in the token check; fixed in auth.ts."
+summary: "## API contract (verbatim)\n[[#9]]\n\nDebugged the 401: clock skew in
+          the token check; fixed in auth.ts."
 actionRightAfterTrim: "Tell the user the 401 is fixed; ask whether to ship."
 ```
 
@@ -48,10 +48,10 @@ anything already written to a file.
   or not at all.
 - A short session — nothing to reclaim.
 - Twice for the same ground. A summary closing with "That trim is complete" is
-  the trim you just made: do its `actionRightAfterTrim`, not another trim — a trim with nothing
-  in between is refused anyway. When a reply says
-  the region was already summarized, the trim is done too. Reach for the tool
-  again once the conversation has grown.
+  the trim you just made: do its `actionRightAfterTrim`, not another trim; one
+  with nothing in between is refused anyway. A reply saying earlier content was
+  already summarized means the same. Trim again once the conversation has
+  grown.
 
 ## This skill is inside every region you trim
 

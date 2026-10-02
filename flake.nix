@@ -41,6 +41,11 @@
             pkgs.shellcheck
             # The Rust jscpd port, prebuilt on qahq's Cachix.
             qahq.packages.${system}.jscpd
+            # README.md is rendered from docs/readme.typ by typlite, which
+            # ships inside tinymist.
+            pkgs.tinymist
+            # Flags prose the code can outgrow; see outdatty.yaml.
+            qahq.packages.${system}.outdatty
           ];
         };
       }

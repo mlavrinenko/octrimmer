@@ -2,7 +2,7 @@
 
 #show: task.with(
   title: "README generated from Typst under 100 lines, drift gated",
-  status: proposed(2026, 10, 2),
+  status: done(2026, 10, 2),
 )
 
 == Summary

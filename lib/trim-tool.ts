@@ -5,7 +5,7 @@ import { saveSessionState } from "./persistence"
 import { buildRefMap, parsePosition } from "./refs"
 import { fetchSessionMessages, getSessionState, modelView } from "./session"
 import type { SessionStore, TrimRecord } from "./state"
-import { expandTemplate, type ExpansionResult } from "./template"
+import { expandTemplate, REFERENCE_SYNTAX, type ExpansionResult } from "./template"
 import type { WithParts } from "./types"
 
 /** How many recent entries the ref map lists when `count` is not given. */
@@ -44,13 +44,7 @@ and no tool work in between, is refused.
 
 The summary can pull entries verbatim instead of re-writing them:
 
-  [[#12]]                whole entry #12 (a message or a summary)
-  [[#12:text]]           only the text parts of message #12
-  [[#12:last-text]]      the final text part of message #12
-  [[#8..#14]]            every entry from #8 to #14
-  [[last-assistant]]     the latest assistant message before this call
-  [[first-user]]         the first user message; also last-user, first-assistant
-  [["poem about rain"]]  the one entry containing that phrase
+${REFERENCE_SYNTAX.map(([write, get]) => `  ${write.padEnd(23)}${get}`).join("\n")}
 
 Pulled content is copied byte-for-byte: do not re-output it. A summary with no
 references is a plain lossy one. References resolve before the trim, so an

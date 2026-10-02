@@ -22,6 +22,20 @@ type Token = { type: "literal"; text: string } | { type: "ref"; inner: string }
 const ROLE_KEYS: RoleKey[] = ["first-user", "last-user", "first-assistant", "last-assistant"]
 
 /**
+ * Every reference form, as the model writes it and what it pulls. The tool
+ * description and the README both render this list, so neither can drift.
+ */
+export const REFERENCE_SYNTAX: ReadonlyArray<readonly [write: string, get: string]> = [
+    ["[[#12]]", "whole entry #12 (a message or a summary)"],
+    ["[[#12:text]]", "only the text parts of message #12"],
+    ["[[#12:last-text]]", "the final text part of message #12"],
+    ["[[#8..#14]]", "every entry from #8 to #14"],
+    ["[[last-assistant]]", "the latest assistant message before this call"],
+    ["[[first-user]]", "the first user message; also last-user, first-assistant"],
+    ['[["poem about rain"]]', "the one entry containing that phrase"],
+]
+
+/**
  * Does the text at `at` (just past a "[[") start a reference? Only a "#", a
  * quote or a role key does. Summaries of code quote TOML tables, bash tests
  * and wiki links; a free-text fallback turned each into a content search that

@@ -1,0 +1,14 @@
+version: 1
+algorithm: blake3
+groups:
+  behaviour:
+    source:
+      lib/overlay.ts: 8f30a7a403c288ac341cea60733e6ab6f108e154a9e62ae18adb095f0d1f0f77
+      lib/render.ts: 05198382059af42ba34413c23a295272f042debbdcdbd302b19a49a5f9f14d42
+      lib/session.ts: e4d08610cb2dff258cdccd393140dc88d4f31a2c54d2f645266ad64cae2311f9
+      lib/template.ts: 8d7c6c4db7bf0e1b677deeafc0674a5d67336796442933471c5af41a74bb6fd7
+      lib/transform.ts: a68fa8bebe72af7a43b0b2c53724c1bec63e22e3db9dcbe725552e2f23d5e968
+      lib/trim-tool.ts: 500ae6167c3c19d6756e82df1bb1f80bcf80bd155b95a82aade2ef540e094e8f
+    dependents:
+      docs/readme.typ: 2c27dac61567da98dbcb15b6949bbfda30fcce754c5acd8dc52c724c3803ff38
+      skills/octrimmer/SKILL.md: 719b0a4ddc4ea96e03660529275fb7072cfc4227aa793958c87a53c5de9b928d

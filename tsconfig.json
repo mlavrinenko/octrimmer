@@ -22,6 +22,6 @@
         "noEmit": true,
         "types": ["node"]
     },
-    "include": ["index.ts", "lib/**/*", "tests/**/*", "*.config.ts"],
+    "include": ["index.ts", "lib/**/*", "tests/**/*", "docs/**/*.ts", "*.config.ts"],
     "exclude": ["node_modules", "dist"]
 }

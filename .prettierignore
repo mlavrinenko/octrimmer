@@ -1,1 +1,4 @@
 flake.lock
+# Rendered from docs/readme.typ by typlite; `just docs-check` owns its shape.
+README.md
+outdatty.lock
