@@ -25,7 +25,7 @@ interface ToolRunContext {
 interface TrimArgs {
     start?: string
     summary?: string
-    next?: string
+    actionRightAfterTrim?: string
     count?: number
 }
 
@@ -38,19 +38,21 @@ the conversation as YOU see it: #1..#N, 1-based context positions. Entries are
 real messages ([user]/[assistant]) or [summary] — the text of an earlier trim.
 Nothing is changed.
 
-TRIM — call with start + summary + next. Everything from start to the end of the
+TRIM — call with start + summary + actionRightAfterTrim. Everything from start to the end of the
 conversation is replaced by your summary. If the region was already trimmed,
 the old summary is replaced, not stacked. A trim right after another — no
-user message and no tool work in between — is refused: do the next step instead.
+user message and no tool work in between — is refused: do your actionRightAfterTrim instead.
 
 start: "#N" — a CONTEXT position from the ref list (the conversation as you
 see it, including [summary] entries). Must point at a real message, not a
 [summary] entry. The region from #N (inclusive) to the end is replaced.
 
-next: what you do right after the trim — usually "answer the user" or the next
-step of the task. The trim swallows the request that asked for it and this
-call, so next is the only thing telling you what comes after. It is rendered
-below your summary with a note that the trim is complete.
+actionRightAfterTrim: what you do IMMEDIATELY after this call — you keep going
+in the same turn, before the user says anything. Usually "confirm the trim to
+the user", "answer the user's question about X", or the next step of the task.
+Never "wait for the user": you act first. The trim swallows the request that
+asked for it and this call, so this is the only thing telling you what comes
+after. It is rendered below your summary with a note that the trim is complete.
 
 summary: a template. It may PULL existing content verbatim instead of
 re-generating it, using [[...]] references:
@@ -88,11 +90,11 @@ export function createTrimContextTool(ctx: TrimToolContext): ReturnType<typeof t
                 .describe(
                     "Template replacing the trimmed region. May contain [[...]] references that pull existing content verbatim. See the tool description for the syntax.",
                 ),
-            next: tool.schema
+            actionRightAfterTrim: tool.schema
                 .string()
                 .optional()
                 .describe(
-                    'Required with start. What you do right after the trim (e.g. "answer the user\'s question about X"). The trim hides the request and this call, so this is how you know what comes next.',
+                    'Required with start. What you do immediately after this call, in the same turn (e.g. "confirm the trim to the user", "answer the user\'s question about X"). Never "wait for the user" — you act before they say anything. The trim hides the request and this call, so this is how you know what comes next.',
                 ),
             count: tool.schema
                 .number()
@@ -152,7 +154,7 @@ async function executeTrim(
 
     if (args.start === undefined || args.start === "") {
         const lines = formatRefMap(refMap)
-        return `Context has ${visible.length} entries (${raw.length} raw messages). Last ${refMap.length}:\n${lines}\n\n[summary] entries are earlier trims. To trim, call again with start: "#N" (a real message), a summary and next.`
+        return `Context has ${visible.length} entries (${raw.length} raw messages). Last ${refMap.length}:\n${lines}\n\n[summary] entries are earlier trims. To trim, call again with start: "#N" (a real message), a summary and actionRightAfterTrim.`
     }
 
     const startPos = parsePosition(args.start)
@@ -169,15 +171,17 @@ async function executeTrim(
     if (args.summary === undefined || args.summary === "") {
         throw new Error("octrimmer: summary is required when start is given.")
     }
-    if (args.next === undefined || args.next.trim() === "") {
+    if (args.actionRightAfterTrim === undefined || args.actionRightAfterTrim.trim() === "") {
         throw new Error(
-            "octrimmer: next is required when start is given — say what you do right after the trim.",
+            "octrimmer: actionRightAfterTrim is required when start is given — say what you do immediately after the trim.",
         )
     }
 
     const idle = idleSinceLastTrim(raw, state.records)
     if (idle) {
-        const plan = idle.next ? ` Do the next step you planned: ${idle.next}` : " Resume the task."
+        const plan = idle.actionRightAfterTrim
+            ? ` Do what you planned right after it: ${idle.actionRightAfterTrim}`
+            : " Resume the task."
         throw new Error(
             `octrimmer: refusing to trim — you already trimmed and nothing has happened since (no user message, no tool work).${plan}`,
         )
@@ -213,7 +217,7 @@ async function executeTrim(
         startRawId,
         endRawId,
         expandedSummary: expansion.text,
-        next: args.next.trim(),
+        actionRightAfterTrim: args.actionRightAfterTrim.trim(),
         originMessageId: toolCtx.messageID,
         refs: expansion.refs,
         createdAt: Date.now(),

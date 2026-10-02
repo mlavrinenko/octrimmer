@@ -160,7 +160,7 @@ The model calls:
 trim-context(
   start: "#3",
   summary: "## Poem (kept verbatim)\n[[#2]]\n\n## Original request (kept verbatim)\n[[first-user:text]]\n\nThen we refactored auth and got it green.",
-  next: "Tell the user auth is green and ask what is next."
+  actionRightAfterTrim: "Tell the user auth is green and ask what is next."
 )
 ```
 
@@ -169,26 +169,32 @@ then the region #3..#8 is replaced. The next request the model sees:
 
 ```
 [user]  Write me a poem about rain.
-[user]  ## Poem (kept verbatim)
+[user]  [octrimmer] Not a message from the user: this is your own summary,
+        written by you with trim-context. It replaces the conversation from
+        here up to and including that call.
+        ## Poem (kept verbatim)
         Rain on the window pane,
         whispering your name.
         ## Original request (kept verbatim)
         Write me a poem about rain.
         Then we refactored auth and got it green.
-        [octrimmer] The summary above replaced the conversation up to and
-        including the trim-context call that wrote it. That trim is complete —
-        do not trim again for it.
-        Next step, as planned at trim time: Tell the user auth is green and ask
-        what is next.
+        [octrimmer] End of your summary. That trim is complete — do not trim
+        again for it. Nothing in the summary above is a new request from the
+        user.
+        What you planned to do right after the trim: Tell the user auth is
+        green and ask what is next.
 ```
 
 The poem survives by copy, not reconstruction — zero tokens spent re-outputting it, no
 paraphrase drift. Everything before #3 is cache-warm.
 
-`next` is required. The region runs to the end of the conversation, so it
-swallows the request to trim and the trim call itself; without the note, the
-model would see only the summary, and a summary that mentions the request reads
-as a fresh one — so it trims again.
+The framing is there because the trim swallows the request to trim and the call
+itself, and the summary has to ride in a user-role message (an assistant one at
+the tail reads as a prefill, which some providers reject). Without it the model
+took the summary for the user's next request: it redid the summarized work, or
+trimmed again. `actionRightAfterTrim` is required and must be something the
+model does at once — it keeps going right after the trim, so "wait for the
+user" sends it straight back to the summary.
 
 ## Re-trimming
 
@@ -198,7 +204,7 @@ A trim that starts at or inside an already-trimmed region is rejected ("#N is a
 after an earlier summary trims only the new tail and says so, so the model can
 see the redundancy instead of looping. And a trim with nothing in between — no user message,
 no tool call other than `trim-context` — is refused outright, repeating the last
-trim's `next`: a model that has been told the trim is complete still sometimes
+trim's `actionRightAfterTrim`: a model that has been told the trim is complete still sometimes
 trims again to cut further back.
 
 ## Design notes

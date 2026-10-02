@@ -13,46 +13,51 @@ function generateStableId(prefix: string, seed: string): string {
 }
 
 /**
+ * The summary rides in a user-role message — an assistant one at the tail reads
+ * as a prefill, which some providers reject — so it says outright that it is
+ * the model's own words, not the user's.
+ */
+const SUMMARY_HEADER =
+    "[octrimmer] Not a message from the user: this is your own summary, written by you with trim-context. It replaces the conversation from here up to and including that call."
+
+/**
  * The region runs to the end of the conversation, so it swallows the request
  * to trim, the trim-context call and its reply. Without this note the next step
- * sees only a user-role summary — no trace the trim happened — and a summary
- * that mentions the request reads as a fresh one.
+ * sees only the summary — no trace the trim happened — and takes it for the
+ * user's next request.
  */
 function trimNote(record: TrimRecord): string {
     const done =
-        "[octrimmer] The summary above replaced the conversation up to and including the trim-context call that wrote it. That trim is complete — do not trim again for it."
-    return record.next ? `${done}\nNext step, as planned at trim time: ${record.next}` : done
+        "[octrimmer] End of your summary. That trim is complete — do not trim again for it. Nothing in the summary above is a new request from the user."
+    return record.actionRightAfterTrim
+        ? `${done}\nWhat you planned to do right after the trim: ${record.actionRightAfterTrim}`
+        : done
 }
 
 function createSyntheticSummary(base: WithParts, record: TrimRecord): WithParts {
     const seed = record.startRawId
+    const sessionID = base.info.sessionID
     const messageId = generateStableId("msg_octrimmer_summary", seed)
-    const partId = generateStableId("prt_octrimmer_summary", seed)
-    const notePartId = generateStableId("prt_octrimmer_note", seed)
+    const textPart = (kind: string, text: string) => ({
+        id: generateStableId(`prt_octrimmer_${kind}`, seed),
+        sessionID,
+        messageID: messageId,
+        type: "text" as const,
+        text,
+    })
     return {
         info: {
             id: messageId,
-            sessionID: base.info.sessionID,
+            sessionID,
             role: "user",
             agent: base.info.agent,
             model: base.info.model,
             time: { created: record.createdAt },
         },
         parts: [
-            {
-                id: partId,
-                sessionID: base.info.sessionID,
-                messageID: messageId,
-                type: "text",
-                text: record.expandedSummary,
-            },
-            {
-                id: notePartId,
-                sessionID: base.info.sessionID,
-                messageID: messageId,
-                type: "text",
-                text: trimNote(record),
-            },
+            textPart("header", SUMMARY_HEADER),
+            textPart("summary", record.expandedSummary),
+            textPart("note", trimNote(record)),
         ],
     }
 }

@@ -33,20 +33,26 @@ describe("transform overlay", () => {
             "m5",
         ])
         const summary = out[2]
-        expect(summary.parts[0].type).toBe("text")
-        if (summary.parts[0].type === "text") {
-            expect(summary.parts[0].text).toBe("SUMMARY")
+        expect(summary.parts[1].type).toBe("text")
+        if (summary.parts[1].type === "text") {
+            expect(summary.parts[1].text).toBe("SUMMARY")
         }
     })
 
-    it("closes the summary with a harness note: trim done, then the next step", async () => {
-        const record = { ...makeRecord("m3", "m5", "SUMMARY"), next: "Reply to the user." }
+    it("frames the summary as the model's own, then closes it: trim done, then the action", async () => {
+        const record = {
+            ...makeRecord("m3", "m5", "SUMMARY"),
+            actionRightAfterTrim: "Reply to the user.",
+        }
         const { messages: out } = await applyTransform([record], messages())
 
-        const parts = out[2].parts
-        expect(parts).toHaveLength(2)
-        const note = parts[1].type === "text" ? parts[1].text : ""
+        const texts = out[2].parts.map((part) => (part.type === "text" ? part.text : ""))
+        expect(texts).toHaveLength(3)
+        const [header, summary, note] = texts
+        expect(header).toContain("Not a message from the user")
+        expect(summary).toBe("SUMMARY")
         expect(note).toContain("trim is complete")
+        expect(note).toContain("Nothing in the summary above is a new request")
         expect(note).toContain("Reply to the user.")
     })
 
