@@ -44,6 +44,15 @@ tasks-check:
 build:
     npx tsup --silent
 
+# Fork branch SLUG off BASE into the ignored `.worktree/`, with its
+# `.envrc` allowed and the dev shell loaded once. Without the allow a
+# worktree's shell is refused and agents reach for `nix develop -c`.
+fork SLUG BASE='HEAD':
+    git worktree add -b '{{ SLUG }}' '.worktree/{{ SLUG }}' '{{ BASE }}'
+    direnv allow '.worktree/{{ SLUG }}'
+    direnv exec '.worktree/{{ SLUG }}' true
+    echo "fork: $PWD/.worktree/{{ SLUG }} ({{ SLUG }} off {{ BASE }})"
+
 # Sandboxed: its own config and data homes, so neither your plugins nor your
 # sessions take part. Costs a few model calls, so it is not part of `check`.
 #
