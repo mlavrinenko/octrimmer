@@ -38,10 +38,10 @@ build:
 # Sandboxed: its own config and data homes, so neither your plugins nor your
 # sessions take part. Costs a few model calls, so it is not part of `check`.
 #
-#   just e2e                             the default model
+#   just e2e                             the first free model opencode offers
 #   just e2e anthropic/claude-haiku-4-5  a different one
 #   KEEP=1 just e2e                      keep the sandbox to poke at
 [doc("End-to-end check against a real opencode and a real model")]
 e2e model="" *args: build
-    MODEL="${MODEL:-{{ if model == "" { "opencode/space-bunny-free" } else { model } }}}" \
+    MODEL="${MODEL:-{{ model }}}" \
       bash scripts/e2e.sh {{ args }}

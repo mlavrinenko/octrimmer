@@ -8,7 +8,9 @@
 # nothing else). Credentials are the one thing borrowed from the real profile,
 # by symlink rather than copy.
 #
-#   MODEL=provider/model  which model to drive (default below)
+#   MODEL=provider/model  which model to drive (default: the first free one
+#                         opencode offers — free models come and go, so none
+#                         is pinned)
 #   KEEP=1                keep the sandbox for inspection instead of deleting
 #
 # Exits non-zero if any assertion fails. Model-dependent behaviour (does it
@@ -17,7 +19,6 @@
 
 set -euo pipefail
 
-MODEL="${MODEL:-opencode/space-bunny-free}"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BUNDLE="$ROOT/dist/index.js"
 STEP_TIMEOUT="${STEP_TIMEOUT:-600}"
@@ -49,6 +50,14 @@ need() {
 
 need opencode
 need jq
+
+if [ -z "${MODEL:-}" ]; then
+    MODEL="$(opencode models 2>/dev/null | grep -m1 '^opencode/.*-free$' || true)"
+    [ -n "$MODEL" ] || {
+        say "no free opencode model on offer — pass MODEL=provider/model"
+        exit 1
+    }
+fi
 
 [ -f "$BUNDLE" ] || {
     say "no bundle at dist/index.js — run 'just build' first"

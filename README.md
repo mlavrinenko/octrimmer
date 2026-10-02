@@ -68,7 +68,7 @@ prints a scorecard. Needs `opencode` on PATH, credentials for the model, and
 `jq`; `just build` runs first.
 
 ```bash
-just e2e                             # default model, opencode/space-bunny-free
+just e2e                             # the first free model opencode offers
 just e2e anthropic/claude-haiku-4-5  # any provider/model opencode can reach
 KEEP=1 just e2e                      # keep the sandbox to poke at
 ```
