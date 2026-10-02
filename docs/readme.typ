@@ -44,8 +44,9 @@ right before a trim and is forgotten until a new trim is needed.
   first phrase through its second, markers included.
 - Flags combine in any order and subtract a section: `-response`, `-reasoning`,
   `-tool`, `-output`.
-- History is never modified: the trim is re-applied on every request, and the
-  messages it hides stay in the session.
+- History is never modified. On every request the trim re-injects the stored
+  summary, already expanded at trim time, so references are never re-resolved.
+  The messages it hides stay in the session.
 - Entries are named by ID, so compaction and reverts cannot move a trim onto
   other messages. A record whose messages are out of sight is skipped, never
   deleted.
