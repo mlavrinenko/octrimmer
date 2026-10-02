@@ -4,11 +4,11 @@ groups:
   behaviour:
     source:
       lib/overlay.ts: 8f30a7a403c288ac341cea60733e6ab6f108e154a9e62ae18adb095f0d1f0f77
-      lib/render.ts: 05198382059af42ba34413c23a295272f042debbdcdbd302b19a49a5f9f14d42
+      lib/render.ts: f4edab163d90bafad5074293eeed6b5345b1eee0584d2be54016bcf92934f32a
       lib/session.ts: e4d08610cb2dff258cdccd393140dc88d4f31a2c54d2f645266ad64cae2311f9
-      lib/template.ts: 21a0d96a874ff459922177320e6ba52f7f2af4f2c66531facd365133447a0c90
+      lib/template.ts: be8e7be6a492db8e7f0132493e3c2ce5b47cda0d708c779690330be25c766f9a
       lib/transform.ts: a68fa8bebe72af7a43b0b2c53724c1bec63e22e3db9dcbe725552e2f23d5e968
       lib/trim-tool.ts: 500ae6167c3c19d6756e82df1bb1f80bcf80bd155b95a82aade2ef540e094e8f
     dependents:
       docs/readme.typ: 84526d1ae9d94605397d2d2586102d56ea12c6f34f8396d593fd8191c8e6286e
-      skills/octrimmer/SKILL.md: 719b0a4ddc4ea96e03660529275fb7072cfc4227aa793958c87a53c5de9b928d
+      skills/octrimmer/SKILL.md: 8d85b9b670baa23d5359fb7dfc0c2acb8b0eef45f6444a3ece96cd294b88626c

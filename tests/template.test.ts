@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 import { expandTemplate } from "../lib/template"
 import { toVisibleItems } from "../lib/overlay"
-import { makeRecord, makeTextMessage } from "./helpers"
+import { makeRecord, makeTextMessage, makeToolMessage } from "./helpers"
 
 const messages = [
     makeTextMessage("m1", "user", "Write me a poem about rain."),
@@ -36,6 +36,27 @@ describe("expandTemplate", () => {
     it("pulls the last text part", () => {
         const result = expandTemplate("[[#4:last-text]]", items)
         expect(result.text).toBe("Extracted OAuth helper.")
+    })
+
+    it("drops a tool result but keeps the call", () => {
+        const withTool = toVisibleItems([
+            makeTextMessage("m1", "user", "Run the suite."),
+            makeToolMessage("m2", "assistant", "bash", "FAIL: 2 tests"),
+        ])
+        const result = expandTemplate("Ran [[#2:no-output]]", withTool)
+        expect(result.errors).toEqual([])
+        expect(result.text).toBe("Ran [tool: bash]")
+        expect(result.refs).toEqual([{ ref: "#2:no-output", rawId: "m2" }])
+    })
+
+    it("applies a picker to a quoted phrase", () => {
+        const withTool = toVisibleItems([
+            makeTextMessage("m1", "user", "Run the suite."),
+            makeToolMessage("m2", "assistant", "bash", "FAIL: 2 tests"),
+        ])
+        const result = expandTemplate('[["FAIL":no-output]]', withTool)
+        expect(result.errors).toEqual([])
+        expect(result.text).toBe("[tool: bash]")
     })
 
     it("pulls a contiguous range", () => {
