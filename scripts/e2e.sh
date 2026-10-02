@@ -141,7 +141,7 @@ say "[2/3] trim with a verbatim reference"
 TRIM_PROMPT='Do exactly three things, in order, and do not stop early.
 1. Write a 4-line poem about rain.
 2. Call the trim-context tool with no arguments and read the numbered list it returns.
-3. Call trim-context a second time with start set to "#1" and summary set to one short sentence followed by a [[#N]] reference pointing at the entry that holds your poem.
+3. Call trim-context a second time with start set to "#1" and summary set to one short sentence followed by a [[#N]] reference pointing at the entry that holds your poem, and next set to "reply DONE".
 Then reply DONE.'
 
 ATTEMPTS="${E2E_ATTEMPTS:-3}"
@@ -229,7 +229,7 @@ attempted=no
 while [ "$retried" -lt "$ATTEMPTS" ]; do
     retried=$((retried + 1))
     RETRY="$SANDBOX/retry-$retried.json"
-    run_opencode "$RETRY" --session "$SESSION" 'Call the trim-context tool with start set to "#1" and summary set to "retry". Then report the tool'"'"'s exact response.'
+    run_opencode "$RETRY" --session "$SESSION" 'Call the trim-context tool with start set to "#1" and summary set to "retry" and next set to "report the response". Then report the tool'"'"'s exact response.'
     grep -q '"start":"#1"' "$RETRY" && attempted=yes
     if grep -q "is a \[summary\] entry" "$RETRY"; then
         refused=yes
@@ -256,6 +256,8 @@ check "the refused trim wrote nothing" \
 stat_line "model" "$MODEL"
 stat_line "attempts needed" "$attempt of $ATTEMPTS"
 stat_line "trim-context calls" "$CALLS ($RECORDS of them trimmed)"
+# More than one trim per run is the post-trim re-trim this scenario never asks for.
+stat_line "trims attempted" "$(jq -r 'select(.type=="tool_use") | select(.part.tool=="trim-context") | .part.state.input.start // empty' "$TRIM" | wc -l)"
 stat_line "references used" "$(jq -r '[.records[].refs[].ref] | if length == 0 then "none (fell back to prose)" else join(", ") end' "$RECORD_FILE")"
 stat_line "summary size" "${#SUMMARIES} bytes"
 

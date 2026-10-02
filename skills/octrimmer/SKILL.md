@@ -17,11 +17,15 @@ description: >-
    the API contract at #9") before you call. A trim changes what you can see
    next; it is not a silent optimization.
 4. Write the summary: references for the artifacts, prose for the rest.
+5. Write `next`: the step you take once the trim lands — usually answering the
+   user, or the next step of the task. The trim swallows the request that asked
+   for it, so `next` is all you will have to go on.
 
 ```
 start:   "#14"
 summary: "## API contract (verbatim)\n[[#9]]\n\nDebugged the 401, cause was a
           stale clock skew in the token check; fixed in auth.ts."
+next:    "Tell the user the 401 is fixed; ask whether to ship."
 ```
 
 ## Keep by reference
@@ -42,9 +46,10 @@ anything already written to a file.
   subagent, your final message is the deliverable, so trim before you build it
   or not at all.
 - A short session — nothing to reclaim.
-- Twice for the same ground. When the reply says the region was already
-  summarized, the trim is done. Resume the task; reach for the tool again once
-  the conversation has grown.
+- Twice for the same ground. A summary closing with "That trim is complete" is
+  the trim you just made: do its `next`, not another trim. When a reply says
+  the region was already summarized, the trim is done too. Reach for the tool
+  again once the conversation has grown.
 
 ## This skill is inside every region you trim
 

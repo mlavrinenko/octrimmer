@@ -81,6 +81,7 @@ function isTrimRecord(value: unknown): value is TrimRecord {
         typeof record.startRawId === "string" &&
         typeof record.endRawId === "string" &&
         typeof record.expandedSummary === "string" &&
-        typeof record.originMessageId === "string"
+        typeof record.originMessageId === "string" &&
+        (record.next === undefined || typeof record.next === "string")
     )
 }

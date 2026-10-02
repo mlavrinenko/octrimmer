@@ -79,6 +79,7 @@ describe("trim-context tool", () => {
                 start: "#3",
                 summary:
                     "## Poem (kept verbatim)\n[[#2]]\n\n## Original request (kept verbatim)\n[[first-user:text]]\n\nThen we refactored auth and got it green.",
+                next: "go on",
             },
             makeToolCtx("s-poem"),
         )
@@ -97,10 +98,10 @@ describe("trim-context tool", () => {
     it("blocks a second trim from the same start (the position is now a summary)", async () => {
         const { tool, state } = makeTool("s-nop", poem)
         const ctx = makeToolCtx("s-nop")
-        await tool.execute({ start: "#3", summary: "poem [[#2]]" }, ctx)
+        await tool.execute({ start: "#3", summary: "poem [[#2]]", next: "go on" }, ctx)
 
         await expect(
-            tool.execute({ start: "#3", summary: "poem [[#2]] again" }, ctx),
+            tool.execute({ start: "#3", summary: "poem [[#2]] again", next: "go on" }, ctx),
         ).rejects.toThrow("is a [summary] entry")
         expect(state.records).toHaveLength(1)
     })
@@ -118,7 +119,7 @@ describe("trim-context tool", () => {
 
         // visible: m1, m2, summary, m9, m10 -> #2 is m2 (a real message)
         const result = await tool.execute(
-            { start: "#2", summary: "poem [[#2:last-text]] + fresh" },
+            { start: "#2", summary: "poem [[#2:last-text]] + fresh", next: "go on" },
             ctx,
         )
 
@@ -134,14 +135,17 @@ describe("trim-context tool", () => {
         const preloaded = [makeRecord("m3", "m8", "OLD SUMMARY")]
         const { tool } = makeTool("s-summary", poem, preloaded)
         await expect(
-            tool.execute({ start: "#3", summary: "x" }, makeToolCtx("s-summary")),
+            tool.execute({ start: "#3", summary: "x", next: "go on" }, makeToolCtx("s-summary")),
         ).rejects.toThrow("is a [summary] entry")
     })
 
     it("refuses to trim when a reference fails, leaving zero records", async () => {
         const { tool, state } = makeTool("s-abort", poem)
         await expect(
-            tool.execute({ start: "#3", summary: "Poem: [[#99]]" }, makeToolCtx("s-abort")),
+            tool.execute(
+                { start: "#3", summary: "Poem: [[#99]]", next: "go on" },
+                makeToolCtx("s-abort"),
+            ),
         ).rejects.toThrow("refusing to trim")
         expect(state.records).toHaveLength(0)
     })
@@ -149,7 +153,7 @@ describe("trim-context tool", () => {
     it("rejects an out-of-range start", async () => {
         const { tool } = makeTool("s-range", poem)
         await expect(
-            tool.execute({ start: "#99", summary: "x" }, makeToolCtx("s-range")),
+            tool.execute({ start: "#99", summary: "x", next: "go on" }, makeToolCtx("s-range")),
         ).rejects.toThrow("out of range")
     })
 
@@ -171,7 +175,7 @@ describe("trim-context tool", () => {
 
         // visible: m1, m2, summary, m9, m10 -> #4 is m9 (a real message after the summary)
         const result = await tool.execute(
-            { start: "#4", summary: "new tail work" },
+            { start: "#4", summary: "new tail work", next: "go on" },
             makeToolCtx("s-overlap"),
         )
 
@@ -179,10 +183,28 @@ describe("trim-context tool", () => {
         expect(state.records).toHaveLength(2)
     })
 
+    it("requires next when start is given", async () => {
+        const { tool, state } = makeTool("s-nonext", poem)
+        await expect(
+            tool.execute({ start: "#3", summary: "x" }, makeToolCtx("s-nonext")),
+        ).rejects.toThrow("next is required")
+        expect(state.records).toHaveLength(0)
+    })
+
+    it("stores next on the record, outside the summary", async () => {
+        const { tool, state } = makeTool("s-next", poem)
+        await tool.execute(
+            { start: "#3", summary: "auth green", next: "Answer the CI question." },
+            makeToolCtx("s-next"),
+        )
+        expect(state.records[0].next).toBe("Answer the CI question.")
+        expect(state.records[0].expandedSummary).toBe("auth green")
+    })
+
     it("degrades to a plain lossy summary with no references", async () => {
         const { tool, state } = makeTool("s-plain", poem)
         const result = await tool.execute(
-            { start: "#3", summary: "Refactored auth; tests green." },
+            { start: "#3", summary: "Refactored auth; tests green.", next: "go on" },
             makeToolCtx("s-plain"),
         )
         expect(result).toContain("Replaced everything from #3")

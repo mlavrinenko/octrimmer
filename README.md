@@ -157,7 +157,8 @@ The model calls:
 ```
 trim-context(
   start: "#3",
-  summary: "## Poem (kept verbatim)\n[[#2]]\n\n## Original request (kept verbatim)\n[[first-user:text]]\n\nThen we refactored auth and got it green."
+  summary: "## Poem (kept verbatim)\n[[#2]]\n\n## Original request (kept verbatim)\n[[first-user:text]]\n\nThen we refactored auth and got it green.",
+  next: "Tell the user auth is green and ask what is next."
 )
 ```
 
@@ -172,10 +173,20 @@ then the region #3..#8 is replaced. The next request the model sees:
         ## Original request (kept verbatim)
         Write me a poem about rain.
         Then we refactored auth and got it green.
+        [octrimmer] The summary above replaced the conversation up to and
+        including the trim-context call that wrote it. That trim is complete —
+        do not trim again for it.
+        Next step, as planned at trim time: Tell the user auth is green and ask
+        what is next.
 ```
 
 The poem survives by copy, not reconstruction — zero tokens spent re-outputting it, no
 paraphrase drift. Everything before #3 is cache-warm.
+
+`next` is required. The region runs to the end of the conversation, so it
+swallows the request to trim and the trim call itself; without the note, the
+model would see only the summary, and a summary that mentions the request reads
+as a fresh one — so it trims again.
 
 ## Re-trimming
 

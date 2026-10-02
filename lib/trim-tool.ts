@@ -24,6 +24,7 @@ interface ToolRunContext {
 interface TrimArgs {
     start?: string
     summary?: string
+    next?: string
     count?: number
 }
 
@@ -36,13 +37,18 @@ the conversation as YOU see it: #1..#N, 1-based context positions. Entries are
 real messages ([user]/[assistant]) or [summary] — the text of an earlier trim.
 Nothing is changed.
 
-TRIM — call with start + summary. Everything from start to the end of the
+TRIM — call with start + summary + next. Everything from start to the end of the
 conversation is replaced by your summary. If the region was already trimmed,
 the old summary is replaced, not stacked.
 
 start: "#N" — a CONTEXT position from the ref list (the conversation as you
 see it, including [summary] entries). Must point at a real message, not a
 [summary] entry. The region from #N (inclusive) to the end is replaced.
+
+next: what you do right after the trim — usually "answer the user" or the next
+step of the task. The trim swallows the request that asked for it and this
+call, so next is the only thing telling you what comes after. It is rendered
+below your summary with a note that the trim is complete.
 
 summary: a template. It may PULL existing content verbatim instead of
 re-generating it, using [[...]] references:
@@ -79,6 +85,12 @@ export function createTrimContextTool(ctx: TrimToolContext): ReturnType<typeof t
                 .optional()
                 .describe(
                     "Template replacing the trimmed region. May contain [[...]] references that pull existing content verbatim. See the tool description for the syntax.",
+                ),
+            next: tool.schema
+                .string()
+                .optional()
+                .describe(
+                    'Required with start. What you do right after the trim (e.g. "answer the user\'s question about X"). The trim hides the request and this call, so this is how you know what comes next.',
                 ),
             count: tool.schema
                 .number()
@@ -117,7 +129,7 @@ async function executeTrim(
 
     if (args.start === undefined || args.start === "") {
         const lines = formatRefMap(refMap)
-        return `Context has ${visible.length} entries (${raw.length} raw messages). Last ${refMap.length}:\n${lines}\n\n[summary] entries are earlier trims. To trim, call again with start: "#N" (a real message) and a summary.`
+        return `Context has ${visible.length} entries (${raw.length} raw messages). Last ${refMap.length}:\n${lines}\n\n[summary] entries are earlier trims. To trim, call again with start: "#N" (a real message), a summary and next.`
     }
 
     const startPos = parsePosition(args.start)
@@ -133,6 +145,11 @@ async function executeTrim(
     }
     if (args.summary === undefined || args.summary === "") {
         throw new Error("octrimmer: summary is required when start is given.")
+    }
+    if (args.next === undefined || args.next.trim() === "") {
+        throw new Error(
+            "octrimmer: next is required when start is given — say what you do right after the trim.",
+        )
     }
 
     const startItem = visible[startPos - 1]
@@ -165,6 +182,7 @@ async function executeTrim(
         startRawId,
         endRawId,
         expandedSummary: expansion.text,
+        next: args.next.trim(),
         originMessageId: toolCtx.messageID,
         refs: expansion.refs,
         createdAt: Date.now(),

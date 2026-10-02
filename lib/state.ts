@@ -18,6 +18,8 @@ export interface TrimRecord {
     startRawId: string
     endRawId: string
     expandedSummary: string
+    /** What to do right after the trim, rendered under the summary. Absent on older records. */
+    next?: string
     originMessageId: string
     refs: TrimRef[]
     createdAt: number

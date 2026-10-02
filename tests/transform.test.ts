@@ -39,6 +39,17 @@ describe("transform overlay", () => {
         }
     })
 
+    it("closes the summary with a harness note: trim done, then the next step", async () => {
+        const record = { ...makeRecord("m3", "m5", "SUMMARY"), next: "Reply to the user." }
+        const { messages: out } = await applyTransform([record], messages())
+
+        const parts = out[2].parts
+        expect(parts).toHaveLength(2)
+        const note = parts[1].type === "text" ? parts[1].text : ""
+        expect(note).toContain("trim is complete")
+        expect(note).toContain("Reply to the user.")
+    })
+
     it("keeps messages appended after the end position", async () => {
         const { messages: out } = await applyTransform(
             [makeRecord("m3", "m4", "SUMMARY")],

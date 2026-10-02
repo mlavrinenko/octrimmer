@@ -12,10 +12,23 @@ function generateStableId(prefix: string, seed: string): string {
     return `${prefix}_${hash}`
 }
 
+/**
+ * The region runs to the end of the conversation, so it swallows the request
+ * to trim, the trim-context call and its reply. Without this note the next step
+ * sees only a user-role summary — no trace the trim happened — and a summary
+ * that mentions the request reads as a fresh one.
+ */
+function trimNote(record: TrimRecord): string {
+    const done =
+        "[octrimmer] The summary above replaced the conversation up to and including the trim-context call that wrote it. That trim is complete — do not trim again for it."
+    return record.next ? `${done}\nNext step, as planned at trim time: ${record.next}` : done
+}
+
 function createSyntheticSummary(base: WithParts, record: TrimRecord): WithParts {
     const seed = record.startRawId
     const messageId = generateStableId("msg_octrimmer_summary", seed)
     const partId = generateStableId("prt_octrimmer_summary", seed)
+    const notePartId = generateStableId("prt_octrimmer_note", seed)
     return {
         info: {
             id: messageId,
@@ -32,6 +45,13 @@ function createSyntheticSummary(base: WithParts, record: TrimRecord): WithParts 
                 messageID: messageId,
                 type: "text",
                 text: record.expandedSummary,
+            },
+            {
+                id: notePartId,
+                sessionID: base.info.sessionID,
+                messageID: messageId,
+                type: "text",
+                text: trimNote(record),
             },
         ],
     }
