@@ -1,12 +1,12 @@
 <h1>octrimmer</h1>
 
-Manual context trimming for [OpenCode](https://opencode.ai). One tool, `trim-context`, replaces the tail of a conversation with a summary the model writes, and the summary can copy earlier messages verbatim instead of retelling them. No nudges, no automatic trims: beyond the tool’s own description, nothing reaches the context until the model trims.
+Manual context trimming for [OpenCode](https://opencode.ai). One tool, `trim-context`, replaces the tail of a conversation with a summary the model writes. The summary can copy earlier messages verbatim instead of retelling them. No nudges, no automatic trims: beyond the tool’s own description, nothing reaches the context until the model trims.
 
 ## Why
 
-A long session buries the one API contract that still matters under forty messages of dead debug output, and heads for the context limit. A trim buys back headroom and attention. It does not save money: the tail it cuts was already cached, and the summary replacing it is fresh input.
+A long session buries the one API contract that still matters under forty messages of dead debug output, and heads for the context limit. A trim buys back headroom and attention, not money: the tail it cuts was already cached, and the summary replacing it is fresh input.
 
-Against compaction, which paraphrases everything, a reference is copied by the plugin byte for byte. A paraphrase of a spec is not the spec, and the model spends no output tokens rewriting what it pulls.
+Compaction paraphrases everything. A reference is copied by the plugin byte for byte. A paraphrase of a spec is not the spec. The model also spends no output tokens rewriting what it pulls.
 
 ## Install
 
@@ -18,7 +18,7 @@ cp dist/index.js ~/.config/opencode/plugins/octrimmer.js  # every project
 cp dist/index.js .opencode/plugins/octrimmer.js           # one project
 ```
 
-To hide the tool from a project or an agent, set `"trim-context": "deny"` under opencode’s `permission`.
+Hide the tool from a project or an agent: set `"trim-context": "deny"` under opencode’s `permission`.
 
 `skills/octrimmer/` is an optional skill for models that trim badly: where to cut, what to keep, when not to trim. The syntax is already in the tool’s own description. Copy the directory to `~/.config/opencode/skills/`.
 
@@ -66,7 +66,7 @@ Fixed the 401: the token check used a stale clock; auth.ts patched, tests green.
 What you planned to do right after the trim: Confirm the trim to the user.
 ```
 
-Everything before the start is byte-identical, so the provider’s prompt cache stays warm. The trim swallows the request that asked for it and the call itself, so `actionRightAfterTrim` is how the model knows what comes next.
+Everything before the start is byte-identical, so the provider’s prompt cache stays warm. The trim swallows the request that asked for it and the call itself; `actionRightAfterTrim` tells the model what comes next.
 
 ## References
 
@@ -80,7 +80,7 @@ Everything before the start is byte-identical, so the provider’s prompt cache 
 | `[[first-user]]` | the first user message; also last-user, first-assistant |
 | `[["poem about rain"]]` | the one entry containing that phrase |
 
-A phrase must match exactly one entry; otherwise the error lists the candidates. `[[` followed by anything else is plain text, so a TOML table or a bash test in a summary stays as written; a literal `[[#` is written `\[[#`. One failing reference refuses the whole trim and reports every failure.
+A phrase must match exactly one entry; otherwise the error lists the candidates. `[[` followed by anything else is plain text, so a TOML table or a bash test in a summary stays as written; write a literal `[[#` as `\[[#`. One failing reference refuses the whole trim and reports every failure.
 
 ## Behaviour
 
