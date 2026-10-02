@@ -25,8 +25,8 @@ describe("expandTemplate", () => {
         expect(result.refs).toEqual([{ ref: "#2", rawId: "m2" }])
     })
 
-    it("pulls only text parts", () => {
-        const result = expandTemplate("[[#2:text]]", items)
+    it("drops tool calls with -tool", () => {
+        const result = expandTemplate("[[#2:-tool]]", items)
         expect(result.errors).toEqual([])
         expect(result.text).toBe(
             "Here is your poem:\nRain on the window pane,\nwhispering your name.",
@@ -43,24 +43,73 @@ describe("expandTemplate", () => {
             makeTextMessage("m1", "user", "Run the suite."),
             makeToolMessage("m2", "assistant", "bash", "FAIL: 2 tests"),
         ])
-        const result = expandTemplate("Ran [[#2:no-output]]", withTool)
+        const result = expandTemplate("Ran [[#2:-output]]", withTool)
         expect(result.errors).toEqual([])
         expect(result.text).toBe("Ran [tool: bash]")
-        expect(result.refs).toEqual([{ ref: "#2:no-output", rawId: "m2" }])
+        expect(result.refs).toEqual([{ ref: "#2:-output", rawId: "m2" }])
     })
 
-    it("applies a picker to a quoted phrase", () => {
+    it("combines flags", () => {
         const withTool = toVisibleItems([
             makeTextMessage("m1", "user", "Run the suite."),
             makeToolMessage("m2", "assistant", "bash", "FAIL: 2 tests"),
         ])
-        const result = expandTemplate('[["FAIL":no-output]]', withTool)
+        expect(expandTemplate("[[#2:-tool-output]]", withTool).text).toBe("")
+        expect(expandTemplate("[[#2:-response]]", withTool).text).toBe(
+            "[tool: bash]\nFAIL: 2 tests",
+        )
+    })
+
+    it("rejects an unknown flag", () => {
+        const result = expandTemplate("[[#2:-reasoning]]", items)
+        expect(result.errors.length).toBe(1)
+        expect(result.errors[0]?.reason).toContain("unsupported flag")
+    })
+
+    it("applies a flag to a quoted phrase", () => {
+        const withTool = toVisibleItems([
+            makeTextMessage("m1", "user", "Run the suite."),
+            makeToolMessage("m2", "assistant", "bash", "FAIL: 2 tests"),
+        ])
+        const result = expandTemplate('[["FAIL":-output]]', withTool)
         expect(result.errors).toEqual([])
         expect(result.text).toBe("[tool: bash]")
     })
 
+    it("cuts between two phrases in one entry", () => {
+        const result = expandTemplate('[["poem:":"whispering"]]', items)
+        expect(result.errors).toEqual([])
+        expect(result.text).toBe("\nRain on the window pane,\n")
+        expect(result.refs).toEqual([{ ref: '"poem:":"whispering"', rawId: "m2" }])
+    })
+
+    it("keeps a colon inside a phrase", () => {
+        const withColon = toVisibleItems([makeTextMessage("m1", "user", "Spec: GET /x:y is 200")])
+        const result = expandTemplate('[["GET /x:y"]]', withColon)
+        expect(result.errors).toEqual([])
+        expect(result.text).toBe("Spec: GET /x:y is 200")
+    })
+
+    it("reports a cut whose end phrase never follows", () => {
+        const result = expandTemplate('[["poem:":"unicorn"]]', items)
+        expect(result.errors.length).toBe(1)
+        expect(result.errors[0]?.reason).toContain('followed by "unicorn"')
+    })
+
+    it("reports a cut matching more than one entry", () => {
+        const result = expandTemplate('[["a":"e"]]', items)
+        expect(result.errors.length).toBe(1)
+        expect(result.errors[0]?.reason).toContain("matches 4 entries")
+    })
+
+    it("refuses a modifier on a cut", () => {
+        const result = expandTemplate('[["poem:":"whispering":-tool]]', items)
+        expect(result.errors.length).toBe(1)
+        expect(result.errors[0]?.reason).toContain("takes no modifier")
+    })
+
     it("pulls a contiguous range", () => {
-        const result = expandTemplate("[[#3..#4:text]]", items)
+        const result = expandTemplate("[[#3..#4:-tool]]", items)
         expect(result.errors).toEqual([])
         expect(result.text).toContain("Now refactor")
         expect(result.text).toContain("Extracted OAuth")
@@ -68,7 +117,7 @@ describe("expandTemplate", () => {
     })
 
     it("pulls role keys", () => {
-        expect(expandTemplate("[[first-user:text]]", items).text).toBe(
+        expect(expandTemplate("[[first-user:-tool]]", items).text).toBe(
             "Write me a poem about rain.",
         )
         expect(expandTemplate("[[last-assistant:last-text]]", items).text).toBe(
@@ -132,7 +181,7 @@ describe("expandTemplate", () => {
     it("resolves role keys past the message making the trim call", () => {
         // The caller is the newest assistant message: the one saying "trimming
         // from #N". `last-assistant` means the reply before it.
-        expect(expandTemplate("[[last-assistant:text]]", items, "m4").text).toContain(
+        expect(expandTemplate("[[last-assistant:-tool]]", items, "m4").text).toContain(
             "Here is your poem",
         )
     })
@@ -167,7 +216,7 @@ describe("expandTemplate", () => {
     })
 
     it("is deterministic", () => {
-        const template = '[[#2:text]] and [[first-user:text]] and [["poem about rain":last-text]]'
+        const template = '[[#2:-tool]] and [[first-user:-tool]] and [["poem about rain":last-text]]'
         const a = expandTemplate(template, items)
         const b = expandTemplate(template, items)
         expect(a.text).toBe(b.text)

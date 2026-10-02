@@ -70,7 +70,7 @@ describe("trim-context tool", () => {
         await tool.execute(
             {
                 start: "#3",
-                summary: "[[last-assistant:text]]",
+                summary: "[[last-assistant:-tool]]",
                 actionRightAfterTrim: "go on",
             },
             makeToolCtx("s-caller"),
@@ -94,7 +94,7 @@ describe("trim-context tool", () => {
             {
                 start: "#3",
                 summary:
-                    "## Poem (kept verbatim)\n[[#2]]\n\n## Original request (kept verbatim)\n[[first-user:text]]\n\nThen we refactored auth and got it green.",
+                    "## Poem (kept verbatim)\n[[#2]]\n\n## Original request (kept verbatim)\n[[first-user:-tool]]\n\nThen we refactored auth and got it green.",
                 actionRightAfterTrim: "go on",
             },
             makeToolCtx("s-poem"),

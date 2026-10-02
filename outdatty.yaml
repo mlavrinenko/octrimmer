@@ -13,6 +13,7 @@ groups:
     - name: behaviour
       source:
           - lib/overlay.ts
+          - lib/reference.ts
           - lib/render.ts
           - lib/session.ts
           - lib/template.ts

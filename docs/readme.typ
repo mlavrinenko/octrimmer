@@ -37,7 +37,8 @@ right before a trim and is forgotten until a new trim is needed.
   earlier summaries included.
 - References resolve before the cut, so content inside the tail survives only
   if a reference pulls it. One bad reference refuses the whole trim and lists
-  every failure; a phrase must match exactly one entry.
+  every failure; a phrase must match exactly one entry, and a cut's two
+  phrases must sit in the same entry.
 - History is never modified: the trim is re-applied on every request, and the
   messages it hides stay in the session.
 - Entries are named by ID, so compaction and reverts cannot move a trim onto

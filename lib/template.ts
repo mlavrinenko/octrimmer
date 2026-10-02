@@ -1,15 +1,5 @@
-import { renderMessageLastText, renderMessageNoOutput, renderMessageText } from "./render"
+import { parseRef, resolveParsed, ROLE_KEYS } from "./reference"
 import type { VisibleItem } from "./overlay"
-
-type Picker = "whole" | "text" | "last-text" | "no-output"
-type RoleKey = "first-user" | "last-user" | "first-assistant" | "last-assistant"
-
-type ParsedRef = { ref: string; picker: Picker } & (
-    | { kind: "position"; position: number }
-    | { kind: "range"; position: number; rangeEnd: number }
-    | { kind: "role"; role: RoleKey }
-    | { kind: "pattern"; pattern: string }
-)
 
 export interface ExpansionResult {
     text: string
@@ -19,24 +9,21 @@ export interface ExpansionResult {
 
 type Token = { type: "literal"; text: string } | { type: "ref"; inner: string }
 
-const ROLE_KEYS: RoleKey[] = ["first-user", "last-user", "first-assistant", "last-assistant"]
-
 /**
  * Every reference form, as the model writes it and what it pulls. The tool
  * description and the README both render this list, so neither can drift.
  */
 export const REFERENCE_SYNTAX: ReadonlyArray<readonly [write: string, get: string]> = [
     ["[[#12]]", "the whole entry #12 (a message or a summary)"],
-    ["[[#12:text]]", "entry #12's text only, tool calls dropped"],
+    ["[[#12:-output]]", "entry #12 without tool results: text and calls stay"],
+    ["[[#12:-tool]]", "entry #12 without tool calls: its text only"],
+    ["[[#12:-response]]", "entry #12 without text: tool calls and results only"],
     ["[[#12:last-text]]", "only entry #12's last text block (often the text after its tool calls)"],
-    ["[[#12:no-output]]", "entry #12's text and tool calls, every tool result dropped"],
     ["[[#8..#14]]", "every entry from #8 to #14"],
     ["[[last-assistant]]", "the last assistant entry before this trim call"],
     ["[[first-user]]", "the first user entry; also last-user, first-assistant"],
-    [
-        '[["updatedAt"]]',
-        "the one entry containing that phrase; ':text', ':last-text' and ':no-output' apply here too",
-    ],
+    ['[["updatedAt"]]', "the one entry containing that phrase; the flags apply here too"],
+    ['[["## Contract":"## Behaviour"]]', "the text between those two phrases inside one entry"],
 ]
 
 /**
@@ -103,158 +90,6 @@ function tokenize(template: string): Token[] {
         tokens.push({ type: "literal", text: literal })
     }
     return tokens
-}
-
-/** Capture group `index` of a match that already succeeded: always present. */
-function group(match: RegExpMatchArray, index: number): string {
-    return match[index] ?? ""
-}
-
-/** A parsed reference, or the reason it is malformed. */
-function parseRef(inner: string): ParsedRef | string {
-    const trimmed = inner.trim()
-    let target = trimmed
-    let picker: Picker = "whole"
-    const pickerMatch = trimmed.match(/^(.*?)\s*:\s*(text|last-text|no-output)\s*$/u)
-    if (pickerMatch) {
-        target = group(pickerMatch, 1).trim()
-        picker = group(pickerMatch, 2) as Picker
-    }
-    const rangeMatch = target.match(/^#(\d+)\s*\.\.\s*#(\d+)$/u)
-    if (rangeMatch) {
-        const start = Number.parseInt(group(rangeMatch, 1), 10)
-        const end = Number.parseInt(group(rangeMatch, 2), 10)
-        if (start < 1 || end < 1 || start > end) {
-            return `invalid range "${target}": endpoints must be ascending positive positions`
-        }
-        return { ref: inner, kind: "range", position: start, rangeEnd: end, picker }
-    }
-
-    const positionMatch = target.match(/^#(\d+)$/u)
-    if (positionMatch) {
-        const position = Number.parseInt(group(positionMatch, 1), 10)
-        if (position < 1) {
-            return `invalid position "${target}"`
-        }
-        return { ref: inner, kind: "position", position, picker }
-    }
-
-    const role = ROLE_KEYS.find((key) => key === target)
-    if (role) {
-        return { ref: inner, kind: "role", role, picker }
-    }
-
-    const phraseMatch = target.match(/^"([^"]+)"$/u)
-    if (phraseMatch) {
-        return { ref: inner, kind: "pattern", pattern: group(phraseMatch, 1), picker }
-    }
-
-    return `unsupported reference "${target}"`
-}
-
-function renderItem(item: VisibleItem, picker: Picker): string {
-    if (item.kind === "summary") {
-        return item.text
-    }
-    switch (picker) {
-        case "text":
-            return renderMessageText(item.message)
-        case "last-text":
-            return renderMessageLastText(item.message)
-        case "no-output":
-            return renderMessageNoOutput(item.message)
-        default:
-            return item.text
-    }
-}
-
-/** A summary has no raw message behind it, so nothing to report as pulled. */
-function rawIdsOf(item: VisibleItem): string[] {
-    return item.kind === "message" ? [item.rawId] : []
-}
-
-function resolveAt(
-    position: number,
-    picker: Picker,
-    items: VisibleItem[],
-): { text: string; rawIds: string[]; error?: string } {
-    const item = items[position - 1]
-    if (!item) {
-        return {
-            text: "",
-            rawIds: [],
-            error: `no entry at #${position} (context has ${items.length})`,
-        }
-    }
-    return { text: renderItem(item, picker), rawIds: rawIdsOf(item) }
-}
-
-function resolveRole(
-    role: RoleKey,
-    picker: Picker,
-    items: VisibleItem[],
-    callerRawId: string | undefined,
-): { text: string; rawIds: string[]; error?: string } {
-    const wantRole = role.endsWith("user") ? "user" : "assistant"
-    const candidates = items.filter(
-        (item) => item.kind === "message" && item.role === wantRole && item.rawId !== callerRawId,
-    )
-    const found = role.startsWith("last") ? candidates.at(-1) : candidates[0]
-    if (!found) {
-        return { text: "", rawIds: [], error: `no ${wantRole} message found` }
-    }
-    return { text: renderItem(found, picker), rawIds: rawIdsOf(found) }
-}
-
-function resolvePattern(
-    pattern: string,
-    picker: Picker,
-    items: VisibleItem[],
-): { text: string; rawIds: string[]; error?: string } {
-    const needle = pattern.toLowerCase()
-    const matches = items.filter((item) => item.text.toLowerCase().includes(needle))
-    const [item, second] = matches
-    if (!item) {
-        return { text: "", rawIds: [], error: `no entry contains "${pattern}"` }
-    }
-    if (second) {
-        return {
-            text: "",
-            rawIds: [],
-            error: `"${pattern}" matches ${matches.length} entries: ${matches
-                .map((match) => `#${match.position}`)
-                .join(", ")} — use #N instead`,
-        }
-    }
-    return { text: renderItem(item, picker), rawIds: rawIdsOf(item) }
-}
-
-function resolveParsed(
-    parsed: ParsedRef,
-    items: VisibleItem[],
-    callerRawId: string | undefined,
-): { text: string; rawIds: string[]; error?: string } {
-    switch (parsed.kind) {
-        case "position":
-            return resolveAt(parsed.position, parsed.picker, items)
-        case "range": {
-            const chunks: string[] = []
-            const rawIds: string[] = []
-            for (let position = parsed.position; position <= parsed.rangeEnd; position++) {
-                const resolved = resolveAt(position, parsed.picker, items)
-                if (resolved.error) {
-                    return resolved
-                }
-                chunks.push(resolved.text)
-                rawIds.push(...resolved.rawIds)
-            }
-            return { text: chunks.join("\n\n"), rawIds }
-        }
-        case "role":
-            return resolveRole(parsed.role, parsed.picker, items, callerRawId)
-        case "pattern":
-            return resolvePattern(parsed.pattern, parsed.picker, items)
-    }
 }
 
 /**

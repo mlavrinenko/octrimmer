@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { renderMessage, renderMessageNoOutput } from "../lib/render"
+import { renderMessage, type MessageSection } from "../lib/render"
 import type { WithParts } from "../lib/types"
 
 function toolMessage(state: Record<string, unknown>): WithParts {
@@ -7,6 +7,10 @@ function toolMessage(state: Record<string, unknown>): WithParts {
         info: { id: "m1", sessionID: "s1", role: "assistant", time: { created: 1 } },
         parts: [{ id: "p1", type: "tool", tool: "edit", callID: "c1", state }],
     } as unknown as WithParts
+}
+
+function drop(...sections: MessageSection[]): ReadonlySet<MessageSection> {
+    return new Set(sections)
 }
 
 describe("renderMessage tool parts", () => {
@@ -30,7 +34,7 @@ describe("renderMessage tool parts", () => {
     })
 })
 
-describe("renderMessageNoOutput", () => {
+describe("renderMessage drops", () => {
     it("keeps text and a titled call, drops the result", () => {
         const msg = {
             info: { id: "m1", sessionID: "s1", role: "assistant", time: { created: 1 } },
@@ -45,16 +49,23 @@ describe("renderMessageNoOutput", () => {
                 },
             ],
         } as unknown as WithParts
-        expect(renderMessageNoOutput(msg)).toBe("Checking the failure.\n\n[tool: bash] npm test")
+        expect(renderMessage(msg, drop("output"))).toBe(
+            "Checking the failure.\n\n[tool: bash] npm test",
+        )
     })
 
     it("renders a bare call when the tool carries no title", () => {
         const msg = toolMessage({ status: "completed", output: "ok" })
-        expect(renderMessageNoOutput(msg)).toBe("[tool: edit]")
+        expect(renderMessage(msg, drop("output"))).toBe("[tool: edit]")
     })
 
     it("drops an error body like any other result", () => {
         const msg = toolMessage({ status: "error", error: "oldString not found" })
-        expect(renderMessageNoOutput(msg)).toBe("[tool: edit]")
+        expect(renderMessage(msg, drop("output"))).toBe("[tool: edit]")
+    })
+
+    it("drops tool parts whole", () => {
+        const msg = toolMessage({ status: "completed", output: "ok" })
+        expect(renderMessage(msg, drop("tool"))).toBe("")
     })
 })

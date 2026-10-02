@@ -3,7 +3,7 @@ name: octrimmer
 description: >-
     Where to cut a session's context with `trim-context`, what to keep verbatim,
     what to leave alone. Load when context is tight, or a topic just finished
-    with heavy tool output behind it.
+    with heavy (and now useless) tool output behind it.
 ---
 
 ## Procedure
@@ -23,7 +23,7 @@ description: >-
 
 ```
 start:   "#14"
-summary: "## API contract (verbatim)\n[[#9]]\n\n[[#11:no-output]]\n\nFixed the
+summary: "## API contract (verbatim)\n[[#9]]\n\n[[#11:-output]]\n\nFixed the
           401: clock skew in the token check."
 actionRightAfterTrim: "Tell the user the 401 is fixed; ask whether to ship."
 ```
@@ -33,7 +33,7 @@ actionRightAfterTrim: "Tell the user the 401 is fixed; ask whether to ship."
 Anything you would otherwise re-derive or re-read: a spec, an API contract, a
 decision and its reason, exact error text you are still chasing, content the
 user asked you to hold. `[[#N]]` copies it byte-for-byte — no tokens spent
-regenerating, no paraphrase drift. `[[#N:no-output]]` keeps a call without its
+regenerating, no paraphrase drift. `[[#N:-output]]` keeps a call without its
 result when only the fact it ran matters.
 
 Let go in prose: tool output, debug loops, search results, superseded drafts,
