@@ -15,15 +15,23 @@ type Token = { type: "literal"; text: string } | { type: "ref"; inner: string }
  */
 export const REFERENCE_SYNTAX: ReadonlyArray<readonly [write: string, get: string]> = [
     ["[[#12]]", "the whole entry #12 (a message or a summary)"],
+    [
+        "[[#12.2]]",
+        "part 2 of entry #12 (parts count in render order: response, reasoning, tool calls)",
+    ],
     ["[[#12:-output]]", "entry #12 without tool results: text and calls stay"],
     ["[[#12:-tool]]", "entry #12 without tool calls: its text only"],
     ["[[#12:-response]]", "entry #12 without text: tool calls and results only"],
+    ["[[#12:-reasoning]]", "entry #12 without its reasoning blocks"],
     ["[[#12:last-text]]", "only entry #12's last text block (often the text after its tool calls)"],
     ["[[#8..#14]]", "every entry from #8 to #14"],
     ["[[last-assistant]]", "the last assistant entry before this trim call"],
     ["[[first-user]]", "the first user entry; also last-user, first-assistant"],
     ['[["updatedAt"]]', "the one entry containing that phrase; the flags apply here too"],
-    ['[["## Contract":"## Behaviour"]]', "the text between those two phrases inside one entry"],
+    [
+        '[["## Contract":"## Behaviour"]]',
+        "from the first phrase through the next one inside one entry, markers included",
+    ],
 ]
 
 /**

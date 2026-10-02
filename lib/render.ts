@@ -1,7 +1,9 @@
 import type { MessagePart, WithParts } from "./types"
 
-/** A message section a reference can subtract; reasoning parts are not rendered. */
-export type MessageSection = "response" | "tool" | "output"
+/** A message section a reference can subtract. */
+export type MessageSection = "response" | "reasoning" | "tool" | "output"
+
+const REASONING_MARKER = "[reasoning]"
 
 const NO_DROP: ReadonlySet<MessageSection> = new Set()
 
@@ -31,9 +33,25 @@ function toolPartCall(part: MessagePart): string {
         : `[tool: ${toolName(part)}]`
 }
 
+/** One part as the whole message renders it, minus the dropped sections. */
+export function renderPart(part: MessagePart, drop: ReadonlySet<MessageSection> = NO_DROP): string {
+    if (part.type === "text" || part.type === "reasoning") {
+        const body = typeof part.text === "string" ? part.text : ""
+        const section: MessageSection = part.type === "text" ? "response" : "reasoning"
+        if (drop.has(section) || !body.trim()) {
+            return ""
+        }
+        return part.type === "reasoning" ? `${REASONING_MARKER}\n${body}` : body
+    }
+    if (part.type !== "tool" || drop.has("tool")) {
+        return ""
+    }
+    return drop.has("output") ? toolPartCall(part) : toolPartResult(part)
+}
+
 /**
- * Text and tool parts in order, minus the dropped sections; other part types,
- * reasoning included, are not part of the plugin's view.
+ * Text, reasoning and tool parts in order, minus the dropped sections; other
+ * part types are not part of the plugin's view.
  */
 export function renderMessage(
     message: WithParts,
@@ -41,15 +59,17 @@ export function renderMessage(
 ): string {
     const parts: string[] = []
     for (const part of message.parts) {
-        if (part.type === "text") {
-            if (!drop.has("response") && typeof part.text === "string" && part.text.trim()) {
-                parts.push(part.text)
-            }
-        } else if (part.type === "tool" && !drop.has("tool")) {
-            parts.push(drop.has("output") ? toolPartCall(part) : toolPartResult(part))
+        const rendered = renderPart(part, drop)
+        if (rendered) {
+            parts.push(rendered)
         }
     }
     return parts.join("\n\n")
+}
+
+/** The parts a `#N.M` reference can address, in the numbering's render order. */
+export function addressableParts(message: WithParts): MessagePart[] {
+    return message.parts.filter((part) => renderPart(part) !== "")
 }
 
 /** The final non-empty text part of a message. */

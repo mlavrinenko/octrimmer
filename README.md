@@ -9,20 +9,24 @@ Octrimmer aims to stay lightweight: it has no nudges and adds nothing extra to t
 | **Written** | **Rendered** |
 | --- | --- |
 | `[[#12]]` | the whole entry #12 (a message or a summary) |
+| `[[#12.2]]` | part 2 of entry #12 (parts count in render order: response, reasoning, tool calls) |
 | `[[#12:-output]]` | entry #12 without tool results: text and calls stay |
 | `[[#12:-tool]]` | entry #12 without tool calls: its text only |
 | `[[#12:-response]]` | entry #12 without text: tool calls and results only |
+| `[[#12:-reasoning]]` | entry #12 without its reasoning blocks |
 | `[[#12:last-text]]` | only entry #12's last text block (often the text after its tool calls) |
 | `[[#8..#14]]` | every entry from #8 to #14 |
 | `[[last-assistant]]` | the last assistant entry before this trim call |
 | `[[first-user]]` | the first user entry; also last-user, first-assistant |
 | `[["updatedAt"]]` | the one entry containing that phrase; the flags apply here too |
-| `[["## Contract":"## Behaviour"]]` | the text between those two phrases inside one entry |
+| `[["## Contract":"## Behaviour"]]` | from the first phrase through the next one inside one entry, markers included |
 
 ## Behaviour
 
 - A trim runs from the start position to the end of the conversation. The start is the only choice; positions are the conversation as the model sees it, earlier summaries included.
-- References resolve before the cut, so content inside the tail survives only if a reference pulls it. One bad reference refuses the whole trim and lists every failure; a phrase must match exactly one entry, and a cut’s two phrases must sit in the same entry.
+- An entry renders as its text, its reasoning blocks (marked `[reasoning]`) and its tool calls. A part is addressable by number — `[[#12.2]]`, numbered `.1 .2 …` in that render order.
+- References resolve before the cut, so content inside the tail survives only if a reference pulls it. One bad reference refuses the whole trim and lists every failure; a phrase must match exactly one entry, and a cut runs from its first phrase through its second, markers included.
+- Flags combine in any order and subtract a section: `-response`, `-reasoning`, `-tool`, `-output`.
 - History is never modified: the trim is re-applied on every request, and the messages it hides stay in the session.
 - Entries are named by ID, so compaction and reverts cannot move a trim onto other messages. A record whose messages are out of sight is skipped, never deleted.
 - A newer trim replaces an older one. Two trims in a row, with nothing in between, are refused.

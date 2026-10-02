@@ -35,10 +35,15 @@ right before a trim and is forgotten until a new trim is needed.
 - A trim runs from the start position to the end of the conversation. The start
   is the only choice; positions are the conversation as the model sees it,
   earlier summaries included.
+- An entry renders as its text, its reasoning blocks (marked `[reasoning]`) and
+  its tool calls. A part is addressable by number — `[[#12.2]]`, numbered
+  `.1 .2 …` in that render order.
 - References resolve before the cut, so content inside the tail survives only
   if a reference pulls it. One bad reference refuses the whole trim and lists
-  every failure; a phrase must match exactly one entry, and a cut's two
-  phrases must sit in the same entry.
+  every failure; a phrase must match exactly one entry, and a cut runs from its
+  first phrase through its second, markers included.
+- Flags combine in any order and subtract a section: `-response`, `-reasoning`,
+  `-tool`, `-output`.
 - History is never modified: the trim is re-applied on every request, and the
   messages it hides stay in the session.
 - Entries are named by ID, so compaction and reverts cannot move a trim onto

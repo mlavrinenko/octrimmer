@@ -6,6 +6,12 @@ interface TextPart {
     [key: string]: unknown
 }
 
+interface ReasoningPart {
+    type: "reasoning"
+    text: string
+    [key: string]: unknown
+}
+
 interface ToolPart {
     type: "tool"
     tool?: string
@@ -14,7 +20,7 @@ interface ToolPart {
     [key: string]: unknown
 }
 
-export type MessagePart = TextPart | ToolPart
+export type MessagePart = TextPart | ReasoningPart | ToolPart
 
 interface MessageInfo {
     id: string

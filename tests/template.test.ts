@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 import { expandTemplate } from "../lib/template"
 import { toVisibleItems } from "../lib/overlay"
+import type { WithParts } from "../lib/types"
 import { makeRecord, makeTextMessage, makeToolMessage } from "./helpers"
 
 const messages = [
@@ -15,6 +16,30 @@ const messages = [
 ]
 
 const items = toVisibleItems(messages)
+
+// #2 is a1: two addressable reasoning/text/tool parts, plus empty and
+// non-rendered parts that must not take a number.
+const partsItems = toVisibleItems([
+    makeTextMessage("u1", "user", "Fix the failing test."),
+    {
+        info: { id: "a1", sessionID: "s1", role: "assistant", time: { created: 1 } },
+        parts: [
+            { id: "p0", type: "step-start" },
+            { id: "p1", type: "reasoning", text: "Check the suite first." },
+            { id: "p2", type: "text", text: "Running the suite." },
+            {
+                id: "p3",
+                type: "tool",
+                tool: "bash",
+                callID: "c1",
+                state: { status: "completed", output: "FAIL: 2 tests" },
+            },
+            { id: "p4", type: "reasoning", text: "   " },
+            { id: "p5", type: "file", file: "a.ts" },
+            { id: "p6", type: "text", text: "Two tests fail." },
+        ],
+    } as unknown as WithParts,
+])
 
 describe("expandTemplate", () => {
     it("pulls a whole message verbatim by position", () => {
@@ -61,7 +86,7 @@ describe("expandTemplate", () => {
     })
 
     it("rejects an unknown flag", () => {
-        const result = expandTemplate("[[#2:-reasoning]]", items)
+        const result = expandTemplate("[[#2:-bogus]]", items)
         expect(result.errors.length).toBe(1)
         expect(result.errors[0]?.reason).toContain("unsupported flag")
     })
@@ -76,10 +101,10 @@ describe("expandTemplate", () => {
         expect(result.text).toBe("[tool: bash]")
     })
 
-    it("cuts between two phrases in one entry", () => {
+    it("cuts between two phrases in one entry, markers included", () => {
         const result = expandTemplate('[["poem:":"whispering"]]', items)
         expect(result.errors).toEqual([])
-        expect(result.text).toBe("\nRain on the window pane,\n")
+        expect(result.text).toBe("poem:\nRain on the window pane,\nwhispering")
         expect(result.refs).toEqual([{ ref: '"poem:":"whispering"', rawId: "m2" }])
     })
 
@@ -221,5 +246,75 @@ describe("expandTemplate", () => {
         const b = expandTemplate(template, items)
         expect(a.text).toBe(b.text)
         expect(a.errors).toEqual(b.errors)
+    })
+})
+
+describe("expandTemplate part references", () => {
+    it("pulls one part, numbered in render order", () => {
+        expect(expandTemplate("[[#2.1]]", partsItems).text).toBe(
+            "[reasoning]\nCheck the suite first.",
+        )
+        expect(expandTemplate("[[#2.2]]", partsItems).text).toBe("Running the suite.")
+        expect(expandTemplate("[[#2.3]]", partsItems).text).toBe("[tool: bash]\nFAIL: 2 tests")
+        expect(expandTemplate("[[#2.4]]", partsItems).text).toBe("Two tests fail.")
+    })
+
+    it("applies flags to a part", () => {
+        expect(expandTemplate("[[#2.3:-output]]", partsItems).text).toBe("[tool: bash]")
+        expect(expandTemplate("[[#2.2:-response]]", partsItems).text).toBe("")
+    })
+
+    it("reports the entry's rawId for a part pull", () => {
+        const result = expandTemplate("[[#2.2]]", partsItems)
+        expect(result.errors).toEqual([])
+        expect(result.refs).toEqual([{ ref: "#2.2", rawId: "a1" }])
+    })
+
+    it("includes reasoning by default and drops it on request", () => {
+        expect(expandTemplate("[[#2.1]]", partsItems).text).toContain("[reasoning]")
+        expect(expandTemplate("[[#2:-reasoning]]", partsItems).text).toBe(
+            "Running the suite.\n\n[tool: bash]\nFAIL: 2 tests\n\nTwo tests fail.",
+        )
+    })
+
+    it("combines flags on a part in any order", () => {
+        expect(expandTemplate("[[#2.3:-output-tool]]", partsItems).text).toBe("")
+        expect(expandTemplate("[[#2.3:-tool-output]]", partsItems).text).toBe("")
+        expect(expandTemplate("[[#2.2:-reasoning-response]]", partsItems).text).toBe("")
+    })
+
+    it("refuses last-text on a part", () => {
+        const result = expandTemplate("[[#2.2:last-text]]", partsItems)
+        expect(result.errors.length).toBe(1)
+        expect(result.errors[0]?.reason).toContain("last-text")
+        expect(result.errors[0]?.reason).toContain("part")
+    })
+
+    it("reports a part beyond the count, naming the candidate count", () => {
+        const result = expandTemplate("[[#2.9]]", partsItems)
+        expect(result.errors.length).toBe(1)
+        expect(result.errors[0]?.reason).toContain("#2 has 4 parts, no .9")
+    })
+
+    it("reports a summary as having no parts", () => {
+        const withSummary = [
+            ...partsItems.slice(0, 1),
+            {
+                kind: "summary" as const,
+                text: "SUMMARY TEXT",
+                record: makeRecord("u1", "u1", "SUMMARY TEXT"),
+                position: 2,
+            },
+        ]
+        const result = expandTemplate("[[#2.1]]", withSummary)
+        expect(result.errors.length).toBe(1)
+        expect(result.errors[0]?.reason).toContain("#2 is a summary and has no parts")
+    })
+
+    it("reports no entry at a part position, naming the candidate count", () => {
+        const result = expandTemplate("[[#99.1]]", partsItems)
+        expect(result.errors.length).toBe(1)
+        expect(result.errors[0]?.reason).toContain("no entry at #99")
+        expect(result.errors[0]?.reason).toContain("context has 2")
     })
 })

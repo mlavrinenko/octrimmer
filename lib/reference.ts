@@ -1,4 +1,10 @@
-import { renderMessage, renderMessageLastText, type MessageSection } from "./render"
+import {
+    addressableParts,
+    renderMessage,
+    renderMessageLastText,
+    renderPart,
+    type MessageSection,
+} from "./render"
 import type { VisibleItem } from "./overlay"
 
 /** How a reference narrows an entry: whole, its last text block, or a subtraction. */
@@ -9,6 +15,7 @@ type RoleKey = "first-user" | "last-user" | "first-assistant" | "last-assistant"
 
 export type ParsedRef = { ref: string; selection: Selection } & (
     | { kind: "position"; position: number }
+    | { kind: "part"; position: number; part: number }
     | { kind: "range"; position: number; rangeEnd: number }
     | { kind: "role"; role: RoleKey }
     | { kind: "pattern"; pattern: string }
@@ -21,8 +28,13 @@ export interface Resolution {
     error?: string
 }
 
+/** A pull that failed: every resolution error has the same empty shape. */
+function refused(error: string): Resolution {
+    return { text: "", rawIds: [], error }
+}
+
 export const ROLE_KEYS: RoleKey[] = ["first-user", "last-user", "first-assistant", "last-assistant"]
-const DROP_FLAGS: readonly MessageSection[] = ["response", "tool", "output"]
+const DROP_FLAGS: readonly MessageSection[] = ["response", "reasoning", "tool", "output"]
 
 /** Capture group `index` of a match that already succeeded: always present. */
 function group(match: RegExpMatchArray, index: number): string {
@@ -51,8 +63,34 @@ function parseSelection(modifier: string | undefined): Selection | string {
     return { kind: "drop", drop }
 }
 
-/** The target half of a reference: position, role, quoted phrase, or phrase cut. */
+/** `#12.2`: one part of an entry, counted in render order. */
+function parsePartTarget(
+    target: string,
+    selection: Selection,
+    ref: string,
+): ParsedRef | string | undefined {
+    const match = target.match(/^#(\d+)\.(\d+)$/u)
+    if (!match) {
+        return undefined
+    }
+    const position = Number.parseInt(group(match, 1), 10)
+    const part = Number.parseInt(group(match, 2), 10)
+    if (position < 1 || part < 1) {
+        return `invalid part "${target}"`
+    }
+    if (selection.kind === "last-text") {
+        return `last-text selects a whole entry's last text block; it cannot address part "${target}"`
+    }
+    return { ref, kind: "part", position, part, selection }
+}
+
+/** The target half of a reference: position, part, role, quoted phrase, or cut. */
 function parseTarget(target: string, selection: Selection, ref: string): ParsedRef | string {
+    const part = parsePartTarget(target, selection, ref)
+    if (part !== undefined) {
+        return part
+    }
+
     const rangeMatch = target.match(/^#(\d+)\s*\.\.\s*#(\d+)$/u)
     if (rangeMatch) {
         const start = Number.parseInt(group(rangeMatch, 1), 10)
@@ -125,16 +163,39 @@ function rawIdsOf(item: VisibleItem): string[] {
     return item.kind === "message" ? [item.rawId] : []
 }
 
+function noEntry(position: number, items: VisibleItem[]): Resolution {
+    return refused(`no entry at #${position} (context has ${items.length})`)
+}
+
 function resolveAt(position: number, selection: Selection, items: VisibleItem[]): Resolution {
     const item = items[position - 1]
     if (!item) {
-        return {
-            text: "",
-            rawIds: [],
-            error: `no entry at #${position} (context has ${items.length})`,
-        }
+        return noEntry(position, items)
     }
     return { text: renderItem(item, selection), rawIds: rawIdsOf(item) }
+}
+
+/** One addressed part of an entry, rendered as the whole entry renders it. */
+function resolvePart(
+    position: number,
+    part: number,
+    selection: Selection,
+    items: VisibleItem[],
+): Resolution {
+    const item = items[position - 1]
+    if (!item) {
+        return noEntry(position, items)
+    }
+    if (item.kind === "summary") {
+        return refused(`#${position} is a summary and has no parts`)
+    }
+    const parts = addressableParts(item.message)
+    const found = parts[part - 1]
+    if (!found) {
+        return refused(`#${position} has ${parts.length} parts, no .${part}`)
+    }
+    const drop = selection.kind === "drop" ? selection.drop : undefined
+    return { text: renderPart(found, drop), rawIds: [item.rawId] }
 }
 
 function resolveRole(
@@ -149,7 +210,7 @@ function resolveRole(
     )
     const found = role.startsWith("last") ? candidates.at(-1) : candidates[0]
     if (!found) {
-        return { text: "", rawIds: [], error: `no ${wantRole} message found` }
+        return refused(`no ${wantRole} message found`)
     }
     return { text: renderItem(found, selection), rawIds: rawIdsOf(found) }
 }
@@ -159,21 +220,18 @@ function resolvePattern(pattern: string, selection: Selection, items: VisibleIte
     const matches = items.filter((item) => item.text.toLowerCase().includes(needle))
     const [item, second] = matches
     if (!item) {
-        return { text: "", rawIds: [], error: `no entry contains "${pattern}"` }
+        return refused(`no entry contains "${pattern}"`)
     }
     if (second) {
-        return {
-            text: "",
-            rawIds: [],
-            error: `"${pattern}" matches ${matches.length} entries: ${matches
-                .map((match) => `#${match.position}`)
-                .join(", ")} — use #N instead`,
-        }
+        const positions = matches.map((match) => `#${match.position}`).join(", ")
+        return refused(
+            `"${pattern}" matches ${matches.length} entries: ${positions} — use #N instead`,
+        )
     }
     return { text: renderItem(item, selection), rawIds: rawIdsOf(item) }
 }
 
-/** The text between `from` and the next `to` after it, in one entry. */
+/** From `from` through the next `to` after it, markers included, in one entry. */
 function resolveCut(from: string, to: string, items: VisibleItem[]): Resolution {
     const needleFrom = from.toLowerCase()
     const needleTo = to.toLowerCase()
@@ -188,23 +246,16 @@ function resolveCut(from: string, to: string, items: VisibleItem[]): Resolution 
         if (end < 0) {
             continue
         }
-        cuts.push({ item, text: item.text.slice(start + from.length, end) })
+        cuts.push({ item, text: item.text.slice(start, end + to.length) })
     }
     if (cuts.length === 0) {
-        return {
-            text: "",
-            rawIds: [],
-            error: `no entry contains "${from}" followed by "${to}"`,
-        }
+        return refused(`no entry contains "${from}" followed by "${to}"`)
     }
     if (cuts.length > 1) {
-        return {
-            text: "",
-            rawIds: [],
-            error: `"${from}".."${to}" matches ${cuts.length} entries: ${cuts
-                .map((cut) => `#${cut.item.position}`)
-                .join(", ")} — narrow the phrases`,
-        }
+        const positions = cuts.map((cut) => `#${cut.item.position}`).join(", ")
+        return refused(
+            `"${from}".."${to}" matches ${cuts.length} entries: ${positions} — narrow the phrases`,
+        )
     }
     const cut = cuts[0]!
     return { text: cut.text, rawIds: rawIdsOf(cut.item) }
@@ -218,6 +269,8 @@ export function resolveParsed(
     switch (parsed.kind) {
         case "position":
             return resolveAt(parsed.position, parsed.selection, items)
+        case "part":
+            return resolvePart(parsed.position, parsed.part, parsed.selection, items)
         case "range": {
             const chunks: string[] = []
             const rawIds: string[] = []

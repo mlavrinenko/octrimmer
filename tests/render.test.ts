@@ -34,6 +34,56 @@ describe("renderMessage tool parts", () => {
     })
 })
 
+function reasoningMessage(text: string): WithParts {
+    return {
+        info: { id: "m1", sessionID: "s1", role: "assistant", time: { created: 1 } },
+        parts: [{ id: "p1", type: "reasoning", text }],
+    } as unknown as WithParts
+}
+
+describe("renderMessage reasoning parts", () => {
+    it("renders a reasoning block with its marker", () => {
+        expect(renderMessage(reasoningMessage("Weighing options."))).toBe(
+            "[reasoning]\nWeighing options.",
+        )
+    })
+
+    it("ignores an empty reasoning block", () => {
+        expect(renderMessage(reasoningMessage("   "))).toBe("")
+    })
+
+    it("keeps part order between text, reasoning and a tool", () => {
+        const msg = {
+            info: { id: "m1", sessionID: "s1", role: "assistant", time: { created: 1 } },
+            parts: [
+                { id: "p1", type: "text", text: "Checking." },
+                { id: "p2", type: "reasoning", text: "The suite matters." },
+                {
+                    id: "p3",
+                    type: "tool",
+                    tool: "edit",
+                    callID: "c1",
+                    state: { status: "completed", output: "ok" },
+                },
+            ],
+        } as unknown as WithParts
+        expect(renderMessage(msg)).toBe(
+            "Checking.\n\n[reasoning]\nThe suite matters.\n\n[tool: edit]\nok",
+        )
+    })
+
+    it("drops reasoning blocks but keeps the rest", () => {
+        const msg = {
+            info: { id: "m1", sessionID: "s1", role: "assistant", time: { created: 1 } },
+            parts: [
+                { id: "p1", type: "reasoning", text: "The suite matters." },
+                { id: "p2", type: "text", text: "Checking." },
+            ],
+        } as unknown as WithParts
+        expect(renderMessage(msg, drop("reasoning"))).toBe("Checking.")
+    })
+})
+
 describe("renderMessage drops", () => {
     it("keeps text and a titled call, drops the result", () => {
         const msg = {

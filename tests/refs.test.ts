@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 import { buildRefMap, parsePosition } from "../lib/refs"
 import { toVisibleItems } from "../lib/overlay"
+import type { WithParts } from "../lib/types"
 import { makeRecord, makeTextMessage } from "./helpers"
 
 describe("buildRefMap", () => {
@@ -28,6 +29,18 @@ describe("buildRefMap", () => {
         const map = buildRefMap(toVisibleItems(messages), 1)
         expect(map[0]?.snippet.length).toBeLessThan(200)
         expect(map[0]?.snippet.endsWith("…")).toBe(true)
+    })
+
+    it("keeps reasoning out of the snippet", () => {
+        const message = {
+            info: { id: "m1", sessionID: "s1", role: "assistant", time: { created: 1 } },
+            parts: [
+                { id: "p1", type: "reasoning", text: "A long and winding chain of thought." },
+                { id: "p2", type: "text", text: "The answer is 42." },
+            ],
+        } as unknown as WithParts
+        const map = buildRefMap(toVisibleItems([message]), 1)
+        expect(map[0]?.snippet).toBe("The answer is 42.")
     })
 
     it("marks summary entries with the summary kind", () => {

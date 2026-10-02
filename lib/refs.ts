@@ -1,4 +1,8 @@
 import type { VisibleItem } from "./overlay"
+import { renderMessage, type MessageSection } from "./render"
+
+/** A list snippet leads with response/tool content; reasoning blocks stay out. */
+const SNIPPET_DROP: ReadonlySet<MessageSection> = new Set(["reasoning"])
 
 export interface RefEntry {
     position: number
@@ -34,7 +38,9 @@ export function buildRefMap(items: VisibleItem[], count: number): RefEntry[] {
             position: item.position,
             kind: item.kind,
             role: item.kind === "summary" ? "summary" : item.role,
-            snippet: summarize(item.text),
+            snippet: summarize(
+                item.kind === "message" ? renderMessage(item.message, SNIPPET_DROP) : item.text,
+            ),
             ...(item.kind === "message" ? { rawId: item.rawId } : {}),
         })
     }

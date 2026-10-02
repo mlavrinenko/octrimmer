@@ -34,7 +34,9 @@ Anything you would otherwise re-derive or re-read: a spec, an API contract, a
 decision and its reason, exact error text you are still chasing, content the
 user asked you to hold. `[[#N]]` copies it byte-for-byte — no tokens spent
 regenerating, no paraphrase drift. `[[#N:-output]]` keeps a call without its
-result when only the fact it ran matters.
+result when only the fact it ran matters; `[[#N:-reasoning]]` drops its
+reasoning blocks, and `[[#N.M]]` pulls one part (parts count in render order:
+response, reasoning, tool calls).
 
 Let go in prose: tool output, debug loops, search results, superseded drafts,
 anything already written to a file.
