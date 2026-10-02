@@ -7,8 +7,8 @@ function toolPartText(part: MessagePart): string {
     const tool = typeof part.tool === "string" && part.tool ? part.tool : "tool"
     const state = part.state
     const output = typeof state?.output === "string" && state.output ? state.output : ""
-    const input = typeof state?.input === "string" && state.input ? state.input : ""
-    const body = output || input
+    const error = typeof state?.error === "string" && state.error ? state.error : ""
+    const body = output || error
     return body ? `[tool: ${tool}]\n${body}` : `[tool: ${tool}]`
 }
 

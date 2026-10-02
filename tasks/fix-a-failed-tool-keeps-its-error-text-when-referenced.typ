@@ -2,7 +2,7 @@
 
 #show: task.with(
   title: "Fix: a failed tool keeps its error text when referenced",
-  status: proposed(2026, 10, 2),
+  status: done(2026, 10, 2),
 )
 
 == Summary

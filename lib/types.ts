@@ -10,7 +10,7 @@ export interface ToolPart {
     type: "tool"
     tool?: string
     callID?: string
-    state?: { status?: string; output?: unknown; input?: unknown; [key: string]: unknown }
+    state?: { status?: string; output?: unknown; error?: unknown; [key: string]: unknown }
     [key: string]: unknown
 }
 
