@@ -1,5 +1,6 @@
 import {
     addressableParts,
+    partSection,
     renderMessage,
     renderMessageLastText,
     renderPart,
@@ -195,6 +196,10 @@ function resolvePart(
         return refused(`#${position} has ${parts.length} parts, no .${part}`)
     }
     const drop = selection.kind === "drop" ? selection.drop : undefined
+    const section = partSection(found)
+    if (drop && section && drop.has(section)) {
+        return refused(`-${section} drops the addressed part "#${position}.${part}"`)
+    }
     return { text: renderPart(found, drop), rawIds: [item.rawId] }
 }
 

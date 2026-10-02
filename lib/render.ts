@@ -33,6 +33,20 @@ function toolPartCall(part: MessagePart): string {
         : `[tool: ${toolName(part)}]`
 }
 
+/** The section a part belongs to, or undefined for parts outside the view. */
+export function partSection(part: MessagePart): MessageSection | undefined {
+    if (part.type === "text") {
+        return "response"
+    }
+    if (part.type === "reasoning") {
+        return "reasoning"
+    }
+    if (part.type === "tool") {
+        return "tool"
+    }
+    return undefined
+}
+
 /** One part as the whole message renders it, minus the dropped sections. */
 export function renderPart(part: MessagePart, drop: ReadonlySet<MessageSection> = NO_DROP): string {
     if (part.type === "text" || part.type === "reasoning") {

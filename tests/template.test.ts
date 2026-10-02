@@ -261,7 +261,19 @@ describe("expandTemplate part references", () => {
 
     it("applies flags to a part", () => {
         expect(expandTemplate("[[#2.3:-output]]", partsItems).text).toBe("[tool: bash]")
-        expect(expandTemplate("[[#2.2:-response]]", partsItems).text).toBe("")
+        expect(expandTemplate("[[#2.2:-output]]", partsItems).text).toBe("Running the suite.")
+    })
+
+    it("refuses a flag that drops the addressed part", () => {
+        for (const [ref, section] of [
+            ["[[#2.1:-reasoning]]", "-reasoning"],
+            ["[[#2.2:-response]]", "-response"],
+            ["[[#2.3:-tool]]", "-tool"],
+        ] as const) {
+            const result = expandTemplate(ref, partsItems)
+            expect(result.errors.length).toBe(1)
+            expect(result.errors[0]?.reason).toContain(`${section} drops the addressed part`)
+        }
     })
 
     it("reports the entry's rawId for a part pull", () => {
@@ -278,9 +290,15 @@ describe("expandTemplate part references", () => {
     })
 
     it("combines flags on a part in any order", () => {
-        expect(expandTemplate("[[#2.3:-output-tool]]", partsItems).text).toBe("")
-        expect(expandTemplate("[[#2.3:-tool-output]]", partsItems).text).toBe("")
-        expect(expandTemplate("[[#2.2:-reasoning-response]]", partsItems).text).toBe("")
+        expect(expandTemplate("[[#2.2:-output-reasoning]]", partsItems).text).toBe(
+            "Running the suite.",
+        )
+        expect(expandTemplate("[[#2.2:-reasoning-output]]", partsItems).text).toBe(
+            "Running the suite.",
+        )
+        expect(expandTemplate("[[#2.1:-response-output]]", partsItems).text).toBe(
+            "[reasoning]\nCheck the suite first.",
+        )
     })
 
     it("refuses last-text on a part", () => {
