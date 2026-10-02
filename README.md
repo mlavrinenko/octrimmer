@@ -196,7 +196,10 @@ A trim that starts at or inside an already-trimmed region is rejected ("#N is a
 [summary] entry"). A trim that starts _before_ an earlier trim replaces it
 (cover-replace — the old summary is dropped, not stacked). A trim that starts
 after an earlier summary trims only the new tail and says so, so the model can
-see the redundancy instead of looping.
+see the redundancy instead of looping. And a trim with nothing in between — no user message,
+no tool call other than `trim-context` — is refused outright, repeating the last
+trim's `next`: a model that has been told the trim is complete still sometimes
+trims again to cut further back.
 
 ## Design notes
 

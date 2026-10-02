@@ -119,6 +119,8 @@ tool_calls() { jq -r --arg t "$2" 'select(.type=="tool_use") | select(.part.tool
 tokens_of() { jq -c 'select(.type=="step_finish") | .part.tokens' "$1"; }
 # Trim-context calls that tried to trim (carried a start), as opposed to listing.
 trims_of() { jq -r 'select(.type=="tool_use") | select(.part.tool=="trim-context") | .part.state.input.start // empty' "$1" | wc -l; }
+# Of those, the ones that went through rather than being refused.
+trims_done() { jq -r 'select(.type=="tool_use") | select(.part.tool=="trim-context") | select(.part.state.status=="completed") | .part.state.input.start // empty' "$1" | wc -l; }
 
 say ""
 say "octrimmer E2E — $MODEL"
@@ -271,8 +273,10 @@ say "[4/4] one trim per request"
 # region swallows the request and the call, so the next step sees only the
 # summary. Unlike scenario 2 nothing is dictated — no positions, no "then reply"
 # — because a scripted next step is exactly what hides the bug. Retried only
-# when the model never trims; a second trim is the failure itself.
+# when the model never trims; a second trim going through is the failure. One
+# the guard refused is reported, not failed: the refusal is the plugin working.
 ONCE_TRIMS=0
+ONCE_REFUSED=0
 once_try=0
 while [ "$once_try" -lt "$ATTEMPTS" ]; do
     once_try=$((once_try + 1))
@@ -280,7 +284,8 @@ while [ "$once_try" -lt "$ATTEMPTS" ]; do
     ONCE="$SANDBOX/once-$once_try.json"
     run_opencode "$WORKED" "Write a 4-line poem about rain, then list three facts about clouds."
     run_opencode "$ONCE" --session "$(session_of "$WORKED")" "Trim your context now, keeping the poem."
-    ONCE_TRIMS="$(trims_of "$ONCE")"
+    ONCE_TRIMS="$(trims_done "$ONCE")"
+    ONCE_REFUSED=$(($(trims_of "$ONCE") - ONCE_TRIMS))
     [ "$ONCE_TRIMS" -gt 0 ] && break
     [ "$once_try" -lt "$ATTEMPTS" ] && say "  ....  attempt $once_try: the model did not trim — retrying"
 done
@@ -289,7 +294,7 @@ if [ "$ONCE_TRIMS" -eq 0 ]; then
     check "a trim request trims once" no "the model never trimmed in $ATTEMPTS attempts (model compliance)"
 else
     check "a trim request trims once" "$([ "$ONCE_TRIMS" -eq 1 ] && echo yes || echo no)" \
-        "$ONCE_TRIMS trim(s) on attempt $once_try of $ATTEMPTS"
+        "$ONCE_TRIMS trim(s) on attempt $once_try of $ATTEMPTS, $ONCE_REFUSED refused"
 fi
 
 # --- stats -------------------------------------------------------------------

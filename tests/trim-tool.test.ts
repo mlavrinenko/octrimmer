@@ -95,14 +95,14 @@ describe("trim-context tool", () => {
         expect(record.expandedSummary).toContain("Then we refactored auth")
     })
 
-    it("blocks a second trim from the same start (the position is now a summary)", async () => {
+    it("blocks an immediate second trim from the same start", async () => {
         const { tool, state } = makeTool("s-nop", poem)
         const ctx = makeToolCtx("s-nop")
         await tool.execute({ start: "#3", summary: "poem [[#2]]", next: "go on" }, ctx)
 
         await expect(
             tool.execute({ start: "#3", summary: "poem [[#2]] again", next: "go on" }, ctx),
-        ).rejects.toThrow("is a [summary] entry")
+        ).rejects.toThrow("nothing has happened since")
         expect(state.records).toHaveLength(1)
     })
 
@@ -111,13 +111,14 @@ describe("trim-context tool", () => {
             ...poemConversation,
             makeTextMessage("m9", "user", "new work"),
             makeTextMessage("m10", "assistant", "done more"),
+            makeTextMessage("m11", "user", "next request"),
         ]
         const preloaded = [makeRecord("m3", "m10", "OLD SUMMARY")]
         const { tool, state } = makeTool("s-cover", () => messages, preloaded)
         const ctx = makeToolCtx("s-cover")
         void ctx
 
-        // visible: m1, m2, summary, m9, m10 -> #2 is m2 (a real message)
+        // visible: m1, m2, summary, m11 -> #2 is m2 (a real message)
         const result = await tool.execute(
             { start: "#2", summary: "poem [[#2:last-text]] + fresh", next: "go on" },
             ctx,
@@ -126,14 +127,18 @@ describe("trim-context tool", () => {
         expect(result).toContain("Replaced everything from #2")
         expect(state.records).toHaveLength(1)
         expect(state.records[0].startRawId).toBe("m2")
-        expect(state.records[0].endRawId).toBe("m10")
+        expect(state.records[0].endRawId).toBe("m11")
         expect(state.records[0].expandedSummary).toContain("whispering your name")
         expect(state.records[0].expandedSummary).not.toContain("OLD SUMMARY")
     })
 
     it("refuses a start that points at a summary entry from an earlier trim", async () => {
         const preloaded = [makeRecord("m3", "m8", "OLD SUMMARY")]
-        const { tool } = makeTool("s-summary", poem, preloaded)
+        const { tool } = makeTool(
+            "s-summary",
+            () => [...poemConversation, makeTextMessage("m9", "user", "more")],
+            preloaded,
+        )
         await expect(
             tool.execute({ start: "#3", summary: "x", next: "go on" }, makeToolCtx("s-summary")),
         ).rejects.toThrow("is a [summary] entry")
@@ -199,6 +204,60 @@ describe("trim-context tool", () => {
         )
         expect(state.records[0].next).toBe("Answer the CI question.")
         expect(state.records[0].expandedSummary).toBe("auth green")
+    })
+
+    describe("right after a trim", () => {
+        const justTrimmed = {
+            ...makeRecord("m3", "m8", "OLD SUMMARY"),
+            next: "Answer the CI question.",
+        }
+        // visible: m1, m2, summary, m9 — #2 is m2, a real message before the summary
+        const retrim = async (session: string, after: WithParts) => {
+            const { tool, state } = makeTool(session, () => [...poemConversation, after], [
+                justTrimmed,
+            ])
+            const run = tool.execute(
+                { start: "#2", summary: "fresh", next: "go on" },
+                makeToolCtx(session),
+            )
+            return { run, state }
+        }
+
+        it("refuses a trim when nothing happened since, repeating next", async () => {
+            const { run, state } = await retrim(
+                "s-again",
+                makeToolMessage("m9", "assistant", "trim-context", "Context has 4 entries"),
+            )
+            await expect(run).rejects.toThrow(
+                /nothing has happened since.*Answer the CI question\./s,
+            )
+            expect(state.records).toEqual([justTrimmed])
+        })
+
+        it("refuses even with text in between: text alone is not progress", async () => {
+            const { run } = await retrim(
+                "s-again-text",
+                makeTextMessage("m9", "assistant", "Trim complete."),
+            )
+            await expect(run).rejects.toThrow("nothing has happened since")
+        })
+
+        it("allows it after tool work", async () => {
+            const { run, state } = await retrim(
+                "s-after-work",
+                makeToolMessage("m9", "assistant", "bash", "npm test -> green"),
+            )
+            await expect(run).resolves.toContain("Replaced everything from #2")
+            expect(state.records[0].startRawId).toBe("m2")
+        })
+
+        it("allows it after a new user message", async () => {
+            const { run } = await retrim(
+                "s-after-user",
+                makeTextMessage("m9", "user", "trim harder"),
+            )
+            await expect(run).resolves.toContain("Replaced everything from #2")
+        })
     })
 
     it("degrades to a plain lossy summary with no references", async () => {

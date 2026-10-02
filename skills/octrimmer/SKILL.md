@@ -47,7 +47,8 @@ anything already written to a file.
   or not at all.
 - A short session — nothing to reclaim.
 - Twice for the same ground. A summary closing with "That trim is complete" is
-  the trim you just made: do its `next`, not another trim. When a reply says
+  the trim you just made: do its `next`, not another trim — a trim with nothing
+  in between is refused anyway. When a reply says
   the region was already summarized, the trim is done too. Reach for the tool
   again once the conversation has grown.
 

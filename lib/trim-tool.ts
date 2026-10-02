@@ -7,6 +7,7 @@ import { buildRefMap, parsePosition } from "./refs"
 import { fetchSessionMessages, getSessionState } from "./session"
 import type { SessionStore, TrimRecord } from "./state"
 import { expandTemplate } from "./template"
+import type { WithParts } from "./types"
 
 export interface TrimToolContext {
     client: unknown
@@ -39,7 +40,8 @@ Nothing is changed.
 
 TRIM — call with start + summary + next. Everything from start to the end of the
 conversation is replaced by your summary. If the region was already trimmed,
-the old summary is replaced, not stacked.
+the old summary is replaced, not stacked. A trim right after another — no
+user message and no tool work in between — is refused: do the next step instead.
 
 start: "#N" — a CONTEXT position from the ref list (the conversation as you
 see it, including [summary] entries). Must point at a real message, not a
@@ -103,6 +105,27 @@ export function createTrimContextTool(ctx: TrimToolContext): ReturnType<typeof t
     })
 }
 
+/**
+ * The newest record, if nothing has happened since it: no user message and no
+ * tool call other than trim-context. Text alone is not progress — "trim
+ * complete" followed by another trim is the loop itself.
+ */
+function idleSinceLastTrim(raw: WithParts[], records: TrimRecord[]): TrimRecord | undefined {
+    const spans = resolveSpans(raw, records)
+    if (spans.length === 0) {
+        return undefined
+    }
+    const latest = spans.reduce((a, b) => (b.end > a.end ? b : a))
+    const progressed = raw
+        .slice(latest.end + 1)
+        .some(
+            (message) =>
+                message.info.role === "user" ||
+                message.parts.some((part) => part.type === "tool" && part.tool !== "trim-context"),
+        )
+    return progressed ? undefined : latest.record
+}
+
 function formatRefMap(refMap: Array<{ position: number; role: string; snippet: string }>): string {
     return refMap.map((entry) => `#${entry.position} [${entry.role}] ${entry.snippet}`).join("\n")
 }
@@ -149,6 +172,14 @@ async function executeTrim(
     if (args.next === undefined || args.next.trim() === "") {
         throw new Error(
             "octrimmer: next is required when start is given — say what you do right after the trim.",
+        )
+    }
+
+    const idle = idleSinceLastTrim(raw, state.records)
+    if (idle) {
+        const plan = idle.next ? ` Do the next step you planned: ${idle.next}` : " Resume the task."
+        throw new Error(
+            `octrimmer: refusing to trim — you already trimmed and nothing has happened since (no user message, no tool work).${plan}`,
         )
     }
 
