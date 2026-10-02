@@ -5,6 +5,7 @@ default: check
 # The one gate. Green before every commit; its checks run in parallel, each
 # silent when green and printing its whole report when red. `e2e` is
 # deliberately out: it spends real model calls and needs credentials.
+[parallel]
 check: fmt-check lint knip shellcheck typecheck test jscpd tasks-check
 
 fmt-check:

@@ -3,7 +3,6 @@ import { defineConfig } from "tsup"
 export default defineConfig({
     entry: ["index.ts"],
     format: ["esm"],
-    dts: false,
     clean: true,
     sourcemap: true,
     // Self-contained dist: the plugin API is a peer dep that a plugins-dir /

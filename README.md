@@ -45,7 +45,7 @@ not directories (opencode 1.18+), and `dist/index.js` is self-contained — no
 `node_modules` at the destination:
 
 ```bash
-npm run build
+just build
 cp dist/index.js ~/.config/opencode/plugins/octrimmer.js   # global
 cp dist/index.js <project>/.opencode/plugins/octrimmer.js  # one project
 ```
@@ -235,7 +235,7 @@ trims again to cut further back.
 - [mindtape](https://github.com/mlavrinenko/mindtape) — task board in `tasks/` (`mt check`)
 - [vitest](https://vitest.dev) — tests
 
-Gate: `just check` (prettier, oxlint, shellcheck, `tsc --noEmit`, vitest, jscpd, `mt check`).
+Gate: `just check` (prettier, oxlint, knip, shellcheck, `tsc --noEmit`, vitest, jscpd, `mt check`).
 The model-driven `just e2e` is separate — it spends real calls.
 
 ## Prior art

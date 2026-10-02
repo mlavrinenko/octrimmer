@@ -5,23 +5,10 @@
     "type": "module",
     "description": "Manual context trimmer for OpenCode. Cut from a start point; keep prior content verbatim by reference — never re-generate it.",
     "main": "./dist/index.js",
-    "types": "./dist/index.d.ts",
     "exports": {
         ".": {
-            "types": "./dist/index.d.ts",
             "import": "./dist/index.js"
         }
-    },
-    "scripts": {
-        "clean": "rm -rf dist",
-        "build": "npm run clean && tsup && tsc --emitDeclarationOnly",
-        "typecheck": "tsc --noEmit",
-        "lint": "oxlint index.ts lib tests",
-        "test": "vitest run",
-        "format": "prettier --write .",
-        "format:check": "prettier --check .",
-        "check": "npm run format:check && npm run lint && npm run typecheck && npm test",
-        "dev": "opencode plugin dev"
     },
     "keywords": [
         "opencode",
