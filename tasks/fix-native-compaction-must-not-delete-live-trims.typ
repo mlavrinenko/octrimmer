@@ -2,7 +2,7 @@
 
 #show: task.with(
   title: "Fix: native compaction must not delete live trims",
-  status: proposed(2026, 10, 2),
+  status: done(2026, 10, 2),
 )
 
 == Summary

@@ -1,8 +1,7 @@
 import { createHash } from "node:crypto"
 import type { PluginConfig } from "./config"
 import type { Logger } from "./logger"
-import { computeVisible, resolveSpans } from "./overlay"
-import { saveSessionState } from "./persistence"
+import { computeVisible } from "./overlay"
 import { getSessionId, getSessionState } from "./session"
 import type { SessionStore, TrimRecord } from "./state"
 import type { WithParts } from "./types"
@@ -88,17 +87,6 @@ export function createTransformHandler(
         const state = await getSessionState(client, store, sessionId, logger)
         if (state.isSubAgent && !config.allowSubAgents) {
             return
-        }
-        if (state.records.length === 0) {
-            return
-        }
-
-        // Drop records that no longer resolve against this list (e.g. native
-        // compaction took an anchor with it).
-        const spans = resolveSpans(messages, state.records)
-        if (spans.length !== state.records.length) {
-            state.records = spans.map((span) => span.record)
-            await saveSessionState(state, logger)
         }
         if (state.records.length === 0) {
             return

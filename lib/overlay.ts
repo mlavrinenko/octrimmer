@@ -42,7 +42,9 @@ export function toVisibleItems(messages: WithParts[]): VisibleItem[] {
  * Resolve every record against THIS message list, by ID. A record whose start
  * or end anchor is gone (native compaction, a revert) resolves to nothing
  * rather than to a stale index range — the list shifts under a record, the
- * IDs in it do not. Callers treat an unresolved record as invalid and drop it.
+ * IDs in it do not. An unresolved record is skipped, never deleted: native
+ * compaction hands the transform only the head, so its end anchor may merely be
+ * out of sight.
  */
 export function resolveSpans(messages: WithParts[], records: TrimRecord[]): TrimSpan[] {
     const indexById = new Map<string, number>()
@@ -63,8 +65,7 @@ export function resolveSpans(messages: WithParts[], records: TrimRecord[]): Trim
 /**
  * Re-apply every trim record as an overlay: summaries are injected where each
  * record's start anchor sits, covered messages are skipped, newer messages
- * survive. Records that no longer resolve are ignored (the transform persists
- * their removal).
+ * survive. Records that no longer resolve are ignored, and kept.
  */
 export function computeVisible(messages: WithParts[], records: TrimRecord[]): VisibleItem[] {
     const spans = resolveSpans(messages, records)

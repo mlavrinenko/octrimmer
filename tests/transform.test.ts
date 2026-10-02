@@ -1,7 +1,13 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
+import { saveSessionState } from "../lib/persistence"
 import { createTransformHandler } from "../lib/transform"
 import { makeRecord, makeStore, makeTextMessage, silentLogger, testConfig } from "./helpers"
 import type { WithParts } from "../lib/types"
+
+vi.mock("../lib/persistence", async (importOriginal) => ({
+    ...(await importOriginal<typeof import("../lib/persistence")>()),
+    saveSessionState: vi.fn(async () => undefined),
+}))
 
 async function applyTransform(records: ReturnType<typeof makeRecord>[], msgs: WithParts[]) {
     const { store, state } = makeStore("s1", records)
@@ -84,20 +90,13 @@ describe("transform overlay", () => {
         ])
     })
 
-    it("invalidates a record whose anchor message vanished (compaction)", async () => {
-        const compacted = [
-            makeTextMessage("m1", "user", "request"),
-            makeTextMessage("m2", "assistant", "poem"),
-            makeTextMessage("c1", "assistant", "compacted summary"),
-            makeTextMessage("m5", "assistant", "continue"),
-        ]
-        const { state, messages: out } = await applyTransform(
-            [makeRecord("m3", "m4", "SUMMARY")],
-            compacted,
-        )
+    it("keeps, unapplied, a record whose anchor message vanished (compaction)", async () => {
+        const compacted = messages().filter((m) => m.info.id !== "m3" && m.info.id !== "m4")
+        const record = makeRecord("m3", "m4", "SUMMARY")
+        const { state, messages: out } = await applyTransform([record], compacted)
 
-        expect(state.records).toEqual([])
-        expect(out).toHaveLength(4)
+        expect(state.records).toEqual([record])
+        expect(out).toHaveLength(3)
     })
 
     it("keeps the span on its own messages when earlier ones are compacted away", async () => {
@@ -123,14 +122,26 @@ describe("transform overlay", () => {
         ])
     })
 
-    it("invalidates a record whose end anchor vanished", async () => {
+    it("keeps, unapplied, a record whose end anchor vanished", async () => {
         const { state, messages: out } = await applyTransform(
             [makeRecord("m3", "gone", "SUMMARY")],
             messages(),
         )
 
-        expect(state.records).toEqual([])
+        expect(state.records).toHaveLength(1)
         expect(out).toHaveLength(5)
+    })
+
+    it("never prunes or saves when handed only the head (native compaction)", async () => {
+        // Compaction runs the transform on the head without the retained tail,
+        // and a trim's end anchor is the last message at trim time: in the tail.
+        const record = makeRecord("m3", "m5", "SUMMARY")
+        vi.mocked(saveSessionState).mockClear()
+        const { state, messages: out } = await applyTransform([record], messages().slice(0, 4))
+
+        expect(state.records).toEqual([record])
+        expect(saveSessionState).not.toHaveBeenCalled()
+        expect(out.map((m) => m.info.id)).toEqual(["m1", "m2", "m3", "m4"])
     })
 
     it("is a no-op when there are no records", async () => {

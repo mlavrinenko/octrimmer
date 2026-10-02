@@ -219,8 +219,8 @@ trims again to cut further back.
   different stretch of the conversation without any error to show for it.
 - **State is per session**, held as a map of in-flight loads, because one plugin instance
   serves a whole opencode server — parent and subagents, concurrently.
-- **Compaction safety.** If opencode's native compaction removes an anchor message, the
-  record is invalidated rather than crashing.
+- **Compaction safety.** A record whose anchor is missing from the list opencode hands the
+  transform (native compaction sends only the head) is skipped, never deleted.
 - **Subagents** are allowed by default; state is per-session so nothing leaks across.
 - **Cache**: the prefix before the start position is unchanged → cache-warm, and the
   summary stabilises after one request, so steady-state cost is a wash. Cutting is not a
