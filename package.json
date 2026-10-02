@@ -35,16 +35,13 @@
     "peerDependencies": {
         "@opencode-ai/plugin": ">=1.4.3"
     },
-    "dependencies": {
-        "@opencode-ai/sdk": "^1.4.3"
-    },
     "devDependencies": {
         "@opencode-ai/plugin": "^1.4.3",
         "@types/node": "^25.5.0",
+        "knip": "^6.39.0",
         "oxlint": "^1.60.0",
         "prettier": "^3.8.1",
         "tsup": "^8.5.1",
-        "tsx": "^4.21.0",
         "typescript": "^6.0.2",
         "vitest": "^3.0.0"
     },

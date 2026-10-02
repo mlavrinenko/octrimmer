@@ -1,0 +1,5 @@
+{
+    "$schema": "https://unpkg.com/knip@6/schema.json",
+    "project": ["lib/**/*.ts", "tests/**/*.ts", "*.config.ts"],
+    "ignoreDependencies": ["oxlint", "prettier"]
+}

@@ -6,7 +6,7 @@ import type { WithParts } from "../lib/types"
 
 vi.mock("../lib/persistence", async (importOriginal) => ({
     ...(await importOriginal<typeof import("../lib/persistence")>()),
-    saveSessionState: vi.fn(async () => undefined),
+    saveSessionState: vi.fn<typeof saveSessionState>(() => Promise.resolve()),
 }))
 
 async function applyTransform(records: ReturnType<typeof makeRecord>[], msgs: WithParts[]) {
@@ -39,10 +39,7 @@ describe("transform overlay", () => {
             "m5",
         ])
         const summary = out[2]
-        expect(summary.parts[1].type).toBe("text")
-        if (summary.parts[1].type === "text") {
-            expect(summary.parts[1].text).toBe("SUMMARY")
-        }
+        expect(summary?.parts[1]).toMatchObject({ type: "text", text: "SUMMARY" })
     })
 
     it("frames the summary as the model's own, then closes it: trim done, then the action", async () => {
@@ -52,14 +49,14 @@ describe("transform overlay", () => {
         }
         const { messages: out } = await applyTransform([record], messages())
 
-        const texts = out[2].parts.map((part) => (part.type === "text" ? part.text : ""))
-        expect(texts).toHaveLength(3)
-        const [header, summary, note] = texts
-        expect(header).toContain("Not a message from the user")
-        expect(summary).toBe("SUMMARY")
-        expect(note).toContain("trim is complete")
-        expect(note).toContain("Nothing in the summary above is a new request")
-        expect(note).toContain("Reply to the user.")
+        const texts = out[2]?.parts.map((part) => part["text"])
+        expect(texts).toEqual([
+            expect.stringContaining("Not a message from the user"),
+            "SUMMARY",
+            expect.stringMatching(
+                /trim is complete.*Nothing in the summary above is a new request.*Reply to the user\./su,
+            ),
+        ])
     })
 
     it("keeps messages appended after the end position", async () => {
@@ -91,7 +88,7 @@ describe("transform overlay", () => {
     })
 
     it("keeps, unapplied, a record whose anchor message vanished (compaction)", async () => {
-        const compacted = messages().filter((m) => m.info.id !== "m3" && m.info.id !== "m4")
+        const compacted = messages().filter((m) => !["m3", "m4"].includes(m.info.id))
         const record = makeRecord("m3", "m4", "SUMMARY")
         const { state, messages: out } = await applyTransform([record], compacted)
 

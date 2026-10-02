@@ -2,12 +2,11 @@ import type { MessagePart, WithParts } from "../lib/types"
 import type { Logger } from "../lib/logger"
 import { createSessionStore, type SessionState, type TrimRecord } from "../lib/state"
 
-export const silentLogger = {
-    info: () => undefined,
-    warn: () => undefined,
-    error: () => undefined,
-    debug: () => undefined,
-} as unknown as Logger
+export function noop(): void {
+    // intentionally nothing
+}
+
+export const silentLogger = { warn: noop } as unknown as Logger
 
 function makePart(id: string, sessionID: string, extra: Record<string, unknown>): MessagePart {
     return { id, sessionID, messageID: id, ...extra } as unknown as MessagePart
@@ -26,8 +25,6 @@ export function makeRecord(startRawId: string, endRawId: string, summary: string
         startRawId,
         endRawId,
         expandedSummary: summary,
-        originMessageId: "origin",
-        refs: [],
         createdAt: 1,
     }
 }

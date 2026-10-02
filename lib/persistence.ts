@@ -6,7 +6,7 @@ import type { Logger } from "./logger"
 import type { SessionState, TrimRecord } from "./state"
 
 const STORAGE_DIR = join(
-    process.env.XDG_DATA_HOME || join(homedir(), ".local", "share"),
+    process.env["XDG_DATA_HOME"] || join(homedir(), ".local", "share"),
     "opencode",
     "storage",
     "plugin",
@@ -22,16 +22,11 @@ export async function saveSessionState(state: SessionState, logger: Logger): Pro
         if (!existsSync(STORAGE_DIR)) {
             await fs.mkdir(STORAGE_DIR, { recursive: true })
         }
-        const payload = {
-            records: state.records,
-            lastUpdated: new Date().toISOString(),
-        }
         await fs.writeFile(
             getSessionFilePath(state.sessionId),
-            JSON.stringify(payload, null, 2),
+            JSON.stringify({ records: state.records }, null, 2),
             "utf-8",
         )
-        logger.debug("Saved session state", { sessionId: state.sessionId })
     } catch (error: unknown) {
         logger.warn("Failed to save session state", {
             sessionId: state.sessionId,
@@ -76,12 +71,11 @@ function isTrimRecord(value: unknown): value is TrimRecord {
     if (!value || typeof value !== "object") {
         return false
     }
-    const record = value as Record<string, unknown>
+    const record = value as Partial<Record<keyof TrimRecord, unknown>>
     return (
         typeof record.startRawId === "string" &&
         typeof record.endRawId === "string" &&
         typeof record.expandedSummary === "string" &&
-        typeof record.originMessageId === "string" &&
         (record.actionRightAfterTrim === undefined ||
             typeof record.actionRightAfterTrim === "string")
     )

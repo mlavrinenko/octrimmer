@@ -1,11 +1,11 @@
 import { tool } from "@opencode-ai/plugin"
 import type { Logger } from "./logger"
-import { computeVisible, resolveSpans } from "./overlay"
+import { computeVisible, resolveSpans, type VisibleItem } from "./overlay"
 import { saveSessionState } from "./persistence"
 import { buildRefMap, parsePosition } from "./refs"
 import { fetchSessionMessages, getSessionState, modelView } from "./session"
 import type { SessionStore, TrimRecord } from "./state"
-import { expandTemplate } from "./template"
+import { expandTemplate, type ExpansionResult } from "./template"
 import type { WithParts } from "./types"
 
 /** How many recent entries the ref map lists when `count` is not given. */
@@ -83,7 +83,7 @@ export function createTrimContextTool(ctx: TrimToolContext): ReturnType<typeof t
                 .optional()
                 .describe(`How many recent entries to list. Default ${DEFAULT_LIST_SIZE}.`),
         },
-        async execute(args, toolCtx) {
+        execute(args, toolCtx) {
             return executeTrim(ctx, args as TrimArgs, toolCtx as unknown as ToolRunContext)
         },
     })
@@ -110,8 +110,92 @@ function idleSinceLastTrim(raw: WithParts[], records: TrimRecord[]): TrimRecord 
     return progressed ? undefined : latest.record
 }
 
-function formatRefMap(refMap: Array<{ position: number; role: string; snippet: string }>): string {
-    return refMap.map((entry) => `#${entry.position} [${entry.role}] ${entry.snippet}`).join("\n")
+function listReply(visible: VisibleItem[], requested?: number): string {
+    const count =
+        typeof requested === "number" && Number.isInteger(requested) && requested > 0
+            ? requested
+            : DEFAULT_LIST_SIZE
+    const refMap = buildRefMap(visible, count)
+    const lines = refMap
+        .map((entry) => `#${entry.position} [${entry.role}] ${entry.snippet}`)
+        .join("\n")
+    return `Context has ${visible.length} entries. Last ${refMap.length}:\n${lines}`
+}
+
+/** The arguments of a trim call, or the first thing wrong with them. */
+function checkTrimArgs(
+    args: TrimArgs,
+    start: string,
+    visibleCount: number,
+): { startPos: number; summary: string; action: string } {
+    const startPos = parsePosition(start)
+    if (startPos === null) {
+        throw new Error(
+            `octrimmer: invalid start "${start}". Use "#N" (a context position from the ref list).`,
+        )
+    }
+    if (startPos > visibleCount) {
+        throw new Error(
+            `octrimmer: start #${startPos} is out of range — context has ${visibleCount} entries.`,
+        )
+    }
+    if (args.summary === undefined || args.summary === "") {
+        throw new Error("octrimmer: summary is required when start is given.")
+    }
+    const action = args.actionRightAfterTrim?.trim() ?? ""
+    if (action === "") {
+        throw new Error(
+            "octrimmer: actionRightAfterTrim is required when start is given — say what you do immediately after the trim.",
+        )
+    }
+    return { startPos, summary: args.summary, action }
+}
+
+function refuseIfIdle(raw: WithParts[], records: TrimRecord[]): void {
+    const idle = idleSinceLastTrim(raw, records)
+    if (idle) {
+        const plan = idle.actionRightAfterTrim
+            ? ` Do what you planned right after it: ${idle.actionRightAfterTrim}`
+            : " Resume the task."
+        throw new Error(
+            `octrimmer: refusing to trim — you already trimmed and nothing has happened since (no user message, no tool work).${plan}`,
+        )
+    }
+}
+
+function expandOrThrow(
+    summary: string,
+    visible: VisibleItem[],
+    callerRawId: string,
+): ExpansionResult {
+    const expansion = expandTemplate(summary, visible, callerRawId)
+    if (expansion.errors.length > 0) {
+        throw new Error(
+            `octrimmer: refusing to trim — ${expansion.errors.length} reference error(s):\n${expansion.errors
+                .map((entry) => `  [${entry.ref}] ${entry.reason}`)
+                .join("\n")}`,
+        )
+    }
+    return expansion
+}
+
+/** Where the trimmed region starts and ends in the list the model sees. */
+function anchorsOf(
+    shown: WithParts[],
+    visible: VisibleItem[],
+    startPos: number,
+): { startRawId: string; startIndex: number; endRawId: string } {
+    const startItem = visible[startPos - 1]
+    if (startItem?.kind !== "message") {
+        throw new Error(
+            `octrimmer: start #${startPos} is a [summary] entry from an earlier trim — pick a real message position (the ref list marks them [user]/[assistant]).`,
+        )
+    }
+    const endRawId = shown.at(-1)?.info.id
+    if (endRawId === undefined) {
+        throw new Error("octrimmer: the session has no messages to trim.")
+    }
+    return { startRawId: startItem.rawId, startIndex: startItem.rawIndex, endRawId }
 }
 
 async function executeTrim(
@@ -129,65 +213,16 @@ async function executeTrim(
 
     const shown = modelView(raw, state.seen)
     const visible = computeVisible(shown, state.records)
-    const count =
-        typeof args.count === "number" && Number.isInteger(args.count) && args.count > 0
-            ? args.count
-            : DEFAULT_LIST_SIZE
-    const refMap = buildRefMap(visible, count)
 
     if (args.start === undefined || args.start === "") {
-        const lines = formatRefMap(refMap)
-        return `Context has ${visible.length} entries. Last ${refMap.length}:\n${lines}`
+        return listReply(visible, args.count)
     }
 
-    const startPos = parsePosition(args.start)
-    if (startPos === null) {
-        throw new Error(
-            `octrimmer: invalid start "${args.start}". Use "#N" (a context position from the ref list).`,
-        )
-    }
-    if (startPos > visible.length) {
-        throw new Error(
-            `octrimmer: start #${startPos} is out of range — context has ${visible.length} entries.`,
-        )
-    }
-    if (args.summary === undefined || args.summary === "") {
-        throw new Error("octrimmer: summary is required when start is given.")
-    }
-    if (args.actionRightAfterTrim === undefined || args.actionRightAfterTrim.trim() === "") {
-        throw new Error(
-            "octrimmer: actionRightAfterTrim is required when start is given — say what you do immediately after the trim.",
-        )
-    }
+    const { startPos, summary, action } = checkTrimArgs(args, args.start, visible.length)
+    refuseIfIdle(raw, state.records)
 
-    const idle = idleSinceLastTrim(raw, state.records)
-    if (idle) {
-        const plan = idle.actionRightAfterTrim
-            ? ` Do what you planned right after it: ${idle.actionRightAfterTrim}`
-            : " Resume the task."
-        throw new Error(
-            `octrimmer: refusing to trim — you already trimmed and nothing has happened since (no user message, no tool work).${plan}`,
-        )
-    }
-
-    const startItem = visible[startPos - 1]
-    if (!startItem || startItem.kind !== "message" || !startItem.rawId) {
-        throw new Error(
-            `octrimmer: start #${startPos} is a [summary] entry from an earlier trim — pick a real message position (the ref list marks them [user]/[assistant]).`,
-        )
-    }
-    const startRawId = startItem.rawId
-    const startIndex = startItem.rawIndex ?? startPos - 1
-    const endRawId = shown[shown.length - 1].info.id
-
-    const expansion = expandTemplate(args.summary, visible, toolCtx.messageID)
-    if (expansion.errors.length > 0) {
-        throw new Error(
-            `octrimmer: refusing to trim — ${expansion.errors.length} reference error(s):\n${expansion.errors
-                .map((entry) => `  [${entry.ref}] ${entry.reason}`)
-                .join("\n")}`,
-        )
-    }
+    const { startRawId, startIndex, endRawId } = anchorsOf(shown, visible, startPos)
+    const expansion = expandOrThrow(summary, visible, toolCtx.messageID)
 
     // Cover-replace: any earlier record that starts at/after the new start is
     // fully inside the new region — drop it so summaries never stack. A record
@@ -203,28 +238,33 @@ async function executeTrim(
         startRawId,
         endRawId,
         expandedSummary: expansion.text,
-        actionRightAfterTrim: args.actionRightAfterTrim.trim(),
-        originMessageId: toolCtx.messageID,
-        refs: expansion.refs,
+        actionRightAfterTrim: action,
         createdAt: Date.now(),
     }
     state.records.push(record)
     await saveSessionState(state, ctx.logger)
 
+    return trimReply(startPos, visible, expansion.refs)
+}
+
+function trimReply(
+    startPos: number,
+    visible: VisibleItem[],
+    refs: ExpansionResult["refs"],
+): string {
     const prefixNote =
         startPos > 1
             ? `Prefix #1..#${startPos - 1} unchanged (cache preserved).`
             : "No prefix remains."
     const refNote =
-        expansion.refs.length > 0
-            ? `\nPulled verbatim: ${expansion.refs.map((entry) => `[${entry.ref}]`).join(", ")}.`
+        refs.length > 0
+            ? `\nPulled verbatim: ${refs.map((entry) => `[${entry.ref}]`).join(", ")}.`
             : ""
-    const priorSummaries = visible.filter(
+    const priorSummary = visible.findLast(
         (item) => item.kind === "summary" && item.position < startPos,
     )
-    const overlapNote =
-        priorSummaries.length > 0
-            ? `\nNote: earlier content was already summarized at #${priorSummaries[priorSummaries.length - 1].position}; this trim covers only the messages after it.`
-            : ""
+    const overlapNote = priorSummary
+        ? `\nNote: earlier content was already summarized at #${priorSummary.position}; this trim covers only the messages after it.`
+        : ""
     return `Replaced everything from #${startPos} to the end of the conversation with your summary. ${prefixNote}${refNote}${overlapNote}`
 }

@@ -1,3 +1,5 @@
+import { mkdir, writeFile } from "fs/promises"
+import { join } from "path"
 import { describe, expect, it } from "vitest"
 import { getSessionState } from "../lib/session"
 import { saveSessionState, loadSessionState } from "../lib/persistence"
@@ -23,8 +25,8 @@ describe("getSessionState", () => {
 
         expect(a.sessionId).toBe("s-a")
         expect(b.sessionId).toBe("s-b")
-        expect(a.records[0].expandedSummary).toBe("FROM A")
-        expect(b.records[0].expandedSummary).toBe("FROM B")
+        expect(a.records[0]?.expandedSummary).toBe("FROM A")
+        expect(b.records[0]?.expandedSummary).toBe("FROM B")
     })
 
     it("loads a session once however many callers ask at once", async () => {
@@ -52,6 +54,25 @@ describe("persistence", () => {
 
         const loaded = await loadSessionState("s-round", silentLogger)
         expect(loaded).toEqual(records)
+    })
+
+    it("loads a file written with the fields since cut", async () => {
+        // tests/setup.ts points XDG_DATA_HOME at a temp dir before anything loads.
+        const dataHome = process.env["XDG_DATA_HOME"] as string
+        const dir = join(dataHome, "opencode", "storage", "plugin", "octrimmer")
+        await mkdir(dir, { recursive: true })
+        const legacy = {
+            ...makeRecord("m1", "m2", "OLD"),
+            originMessageId: "m9",
+            refs: [{ ref: "#1", rawId: "m1" }],
+        }
+        await writeFile(
+            join(dir, "s-legacy.json"),
+            JSON.stringify({ records: [legacy], lastUpdated: "2026-01-01T00:00:00.000Z" }),
+        )
+
+        const loaded = await loadSessionState("s-legacy", silentLogger)
+        expect(loaded?.map((record) => record.expandedSummary)).toEqual(["OLD"])
     })
 
     it("returns null for a session that was never saved", async () => {

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 import { expandTemplate } from "../lib/template"
 import { toVisibleItems } from "../lib/overlay"
-import { makeTextMessage } from "./helpers"
+import { makeRecord, makeTextMessage } from "./helpers"
 
 const messages = [
     makeTextMessage("m1", "user", "Write me a poem about rain."),
@@ -67,27 +67,27 @@ describe("expandTemplate", () => {
     it("reports ambiguous patterns with candidate positions", () => {
         const result = expandTemplate('[["poem"]]', items)
         expect(result.errors.length).toBe(1)
-        expect(result.errors[0].reason).toContain("matches 2 entries")
-        expect(result.errors[0].reason).toContain("#1")
-        expect(result.errors[0].reason).toContain("#2")
+        expect(result.errors[0]?.reason).toContain("matches 2 entries")
+        expect(result.errors[0]?.reason).toContain("#1")
+        expect(result.errors[0]?.reason).toContain("#2")
     })
 
     it("reports patterns that match nothing", () => {
         const result = expandTemplate('[["nonexistent unicorn"]]', items)
         expect(result.errors.length).toBe(1)
-        expect(result.errors[0].reason).toContain("no entry contains")
+        expect(result.errors[0]?.reason).toContain("no entry contains")
     })
 
     it("reports out-of-range positions", () => {
         const result = expandTemplate("[[#99]]", items)
         expect(result.errors.length).toBe(1)
-        expect(result.errors[0].reason).toContain("#99")
+        expect(result.errors[0]?.reason).toContain("#99")
     })
 
     it("rejects a malformed position instead of leaving it literal", () => {
         const result = expandTemplate("[[#two]]", items)
         expect(result.errors.length).toBe(1)
-        expect(result.errors[0].reason).toContain("#two")
+        expect(result.errors[0]?.reason).toContain("#two")
     })
 
     it("treats empty brackets as literal text", () => {
@@ -135,6 +135,7 @@ describe("expandTemplate", () => {
             {
                 kind: "summary" as const,
                 text: "SUMMARY TEXT",
+                record: makeRecord("m1", "m2", "SUMMARY TEXT"),
                 position: 3,
             },
             ...items.slice(2),

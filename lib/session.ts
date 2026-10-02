@@ -51,8 +51,7 @@ async function initSessionState(sessionId: string, logger: Logger): Promise<Sess
 /**
  * The state for one session, loaded at most once. Every caller for the same
  * session awaits the same promise, so two concurrent turns cannot each start a
- * load and clobber one another. A failed load is evicted rather than cached,
- * so the next call retries instead of inheriting a poisoned entry.
+ * load and clobber one another.
  */
 export function getSessionState(
     store: SessionStore,
@@ -63,10 +62,7 @@ export function getSessionState(
     if (existing) {
         return existing
     }
-    const pending = initSessionState(sessionId, logger).catch((error: unknown) => {
-        store.sessions.delete(sessionId)
-        throw error
-    })
+    const pending = initSessionState(sessionId, logger)
     store.sessions.set(sessionId, pending)
     return pending
 }

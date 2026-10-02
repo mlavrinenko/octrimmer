@@ -40,8 +40,7 @@ export function renderMessageText(message: WithParts): string {
 
 /** The final non-empty text part of a message. */
 export function renderMessageLastText(message: WithParts): string {
-    for (let i = message.parts.length - 1; i >= 0; i--) {
-        const part = message.parts[i]
+    for (const part of message.parts.toReversed()) {
         if (part.type === "text" && typeof part.text === "string" && part.text.trim()) {
             return part.text
         }

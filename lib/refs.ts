@@ -9,7 +9,7 @@ export interface RefEntry {
 }
 
 function summarize(text: string, max = 120): string {
-    const oneLine = text.replace(/\s+/g, " ").trim()
+    const oneLine = text.replaceAll(/\s+/gu, " ").trim()
     if (oneLine.length === 0) {
         return "(no text)"
     }
@@ -33,9 +33,9 @@ export function buildRefMap(items: VisibleItem[], count: number): RefEntry[] {
         entries.push({
             position: item.position,
             kind: item.kind,
-            role: item.kind === "summary" ? "summary" : (item.role ?? "?"),
+            role: item.kind === "summary" ? "summary" : item.role,
             snippet: summarize(item.text),
-            rawId: item.rawId,
+            ...(item.kind === "message" ? { rawId: item.rawId } : {}),
         })
     }
     return entries
@@ -43,10 +43,10 @@ export function buildRefMap(items: VisibleItem[], count: number): RefEntry[] {
 
 /** Parse "#N" or "N" into a 1-based position. */
 export function parsePosition(ref: string): number | null {
-    const match = ref.trim().match(/^#?(\d+)$/)
-    if (!match) {
+    const digits = ref.trim().replace(/^#/u, "")
+    if (!/^\d+$/u.test(digits)) {
         return null
     }
-    const value = Number.parseInt(match[1], 10)
-    return Number.isInteger(value) && value >= 1 ? value : null
+    const value = Number.parseInt(digits, 10)
+    return value >= 1 ? value : null
 }

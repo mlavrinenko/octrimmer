@@ -7,16 +7,25 @@ import type { TrimRecord } from "./state"
  * are re-applied. Position is the visible (context) position — this is the
  * addressing space the tool advertises, never raw session positions.
  */
-export interface VisibleItem {
-    kind: "message" | "summary"
-    message?: WithParts
-    rawId?: string
-    rawIndex?: number
-    role?: "user" | "assistant"
+interface MessageItem {
+    kind: "message"
+    message: WithParts
+    rawId: string
+    rawIndex: number
+    role: "user" | "assistant"
     text: string
-    record?: TrimRecord
     position: number
 }
+
+/** An earlier trim, standing in for the messages it replaced. */
+interface SummaryItem {
+    kind: "summary"
+    text: string
+    record: TrimRecord
+    position: number
+}
+
+export type VisibleItem = MessageItem | SummaryItem
 
 /** A record resolved against a concrete message list: 0-based, end inclusive. */
 export interface TrimSpan {
@@ -25,17 +34,21 @@ export interface TrimSpan {
     end: number
 }
 
-/** No records present: the visible list is exactly the raw message list. */
-export function toVisibleItems(messages: WithParts[]): VisibleItem[] {
-    return messages.map((message, index) => ({
+function messageItem(message: WithParts, rawIndex: number, position: number): MessageItem {
+    return {
         kind: "message",
         message,
         rawId: message.info.id,
-        rawIndex: index,
+        rawIndex,
         role: message.info.role,
         text: renderMessage(message),
-        position: index + 1,
-    }))
+        position,
+    }
+}
+
+/** No records present: the visible list is exactly the raw message list. */
+export function toVisibleItems(messages: WithParts[]): VisibleItem[] {
+    return messages.map((message, index) => messageItem(message, index, index + 1))
 }
 
 /**
@@ -72,28 +85,21 @@ export function computeVisible(messages: WithParts[], records: TrimRecord[]): Vi
     const covered = (index: number): boolean =>
         spans.some((span) => index >= span.start && index <= span.end)
 
-    const items: Array<Omit<VisibleItem, "position">> = []
-    for (let index = 0; index < messages.length; index++) {
+    const items: VisibleItem[] = []
+    messages.forEach((message, index) => {
         for (const span of spans) {
             if (span.start === index) {
                 items.push({
                     kind: "summary",
                     text: span.record.expandedSummary,
                     record: span.record,
+                    position: items.length + 1,
                 })
             }
         }
         if (!covered(index)) {
-            const message = messages[index]
-            items.push({
-                kind: "message",
-                message,
-                rawId: message.info.id,
-                rawIndex: index,
-                role: message.info.role,
-                text: renderMessage(message),
-            })
+            items.push(messageItem(message, index, items.length + 1))
         }
-    }
-    return items.map((item, index) => ({ ...item, position: index + 1 }))
+    })
+    return items
 }

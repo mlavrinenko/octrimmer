@@ -2,21 +2,28 @@ set quiet := true
 
 default: check
 
-# Full gate. Green before every commit. `e2e` is deliberately out: it spends
-# real model calls and needs credentials.
-check: fmt-check lint shellcheck typecheck test jscpd tasks-check
+# The one gate. Green before every commit; its checks run in parallel, each
+# silent when green and printing its whole report when red. `e2e` is
+# deliberately out: it spends real model calls and needs credentials.
+check: fmt-check lint knip shellcheck typecheck test jscpd tasks-check
 
 fmt-check:
     npx prettier --check --log-level warn .
 
+# Every rule at error, warnings denied: see .oxlintrc.json.
 lint:
-    npm run -s lint
+    out=$(npx oxlint --deny-warnings index.ts lib tests *.config.ts 2>&1) || { printf '%s\n' "$out"; exit 1; }
+
+# Dead code: unused files, exports, types, class members and dependencies.
+# Fix a finding by cutting, not by ignoring; knip.json carries the entries.
+knip:
+    out=$(npx knip 2>&1) || { printf '%s\n' "$out"; exit 1; }
 
 shellcheck:
     shellcheck scripts/*.sh
 
 typecheck:
-    npm run -s typecheck
+    out=$(npx tsc 2>&1) || { printf '%s\n' "$out"; exit 1; }
 
 # Silent when green; the full report only on failure.
 test:
@@ -34,7 +41,7 @@ tasks-check:
     mt check -q
 
 build:
-    npm run build
+    npx tsup --silent
 
 # Sandboxed: its own config and data homes, so neither your plugins nor your
 # sessions take part. Costs a few model calls, so it is not part of `check`.

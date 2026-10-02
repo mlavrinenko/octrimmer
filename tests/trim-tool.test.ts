@@ -1,14 +1,21 @@
 import { describe, expect, it } from "vitest"
 import { createTrimContextTool } from "../lib/trim-tool"
 import type { TrimRecord } from "../lib/state"
-import { makeRecord, makeStore, makeTextMessage, makeToolMessage, silentLogger } from "./helpers"
+import {
+    makeRecord,
+    makeStore,
+    makeTextMessage,
+    makeToolMessage,
+    noop,
+    silentLogger,
+} from "./helpers"
 import type { WithParts } from "../lib/types"
 
 function fakeClient(getMessages: () => unknown) {
     return {
         session: {
-            messages: async () => ({ data: getMessages() }),
-            get: async () => ({ data: {} }),
+            messages: () => Promise.resolve({ data: getMessages() }),
+            get: () => Promise.resolve({ data: {} }),
         },
     }
 }
@@ -21,8 +28,8 @@ function makeToolCtx(sessionID: string) {
         directory: "/tmp",
         worktree: "/tmp",
         abort: new AbortController().signal,
-        metadata: () => undefined,
-        ask: async () => undefined,
+        metadata: noop,
+        ask: () => Promise.resolve(),
     } as never
 }
 
@@ -68,7 +75,7 @@ describe("trim-context tool", () => {
             },
             makeToolCtx("s-caller"),
         )
-        expect(state.records[0].expandedSummary).toBe("fixed it")
+        expect(state.records[0]?.expandedSummary).toBe("fixed it")
     })
 
     it("lists refs when start is omitted, changing nothing", async () => {
@@ -97,11 +104,11 @@ describe("trim-context tool", () => {
         expect(result).toContain("[#2]")
         expect(state.records).toHaveLength(1)
         const record = state.records[0]
-        expect(record.startRawId).toBe("m3")
-        expect(record.endRawId).toBe("m8")
-        expect(record.expandedSummary).toContain("whispering your name")
-        expect(record.expandedSummary).toContain("Write me a poem about rain.")
-        expect(record.expandedSummary).toContain("Then we refactored auth")
+        expect(record?.startRawId).toBe("m3")
+        expect(record?.endRawId).toBe("m8")
+        expect(record?.expandedSummary).toContain("whispering your name")
+        expect(record?.expandedSummary).toContain("Write me a poem about rain.")
+        expect(record?.expandedSummary).toContain("Then we refactored auth")
     })
 
     it("blocks an immediate second trim from the same start", async () => {
@@ -145,10 +152,10 @@ describe("trim-context tool", () => {
 
         expect(result).toContain("Replaced everything from #2")
         expect(state.records).toHaveLength(1)
-        expect(state.records[0].startRawId).toBe("m2")
-        expect(state.records[0].endRawId).toBe("m11")
-        expect(state.records[0].expandedSummary).toContain("whispering your name")
-        expect(state.records[0].expandedSummary).not.toContain("OLD SUMMARY")
+        expect(state.records[0]?.startRawId).toBe("m2")
+        expect(state.records[0]?.endRawId).toBe("m11")
+        expect(state.records[0]?.expandedSummary).toContain("whispering your name")
+        expect(state.records[0]?.expandedSummary).not.toContain("OLD SUMMARY")
     })
 
     it("refuses a start that points at a summary entry from an earlier trim", async () => {
@@ -227,8 +234,8 @@ describe("trim-context tool", () => {
             { start: "#3", summary: "auth green", actionRightAfterTrim: "Answer the CI question." },
             makeToolCtx("s-next"),
         )
-        expect(state.records[0].actionRightAfterTrim).toBe("Answer the CI question.")
-        expect(state.records[0].expandedSummary).toBe("auth green")
+        expect(state.records[0]?.actionRightAfterTrim).toBe("Answer the CI question.")
+        expect(state.records[0]?.expandedSummary).toBe("auth green")
     })
 
     describe("right after a trim", () => {
@@ -237,7 +244,7 @@ describe("trim-context tool", () => {
             actionRightAfterTrim: "Answer the CI question.",
         }
         // visible: m1, m2, summary, m9 — #2 is m2, a real message before the summary
-        const retrim = async (session: string, after: WithParts) => {
+        const retrim = (session: string, after: WithParts) => {
             const { tool, state } = makeTool(session, () => [...poemConversation, after], [
                 justTrimmed,
             ])
@@ -254,7 +261,7 @@ describe("trim-context tool", () => {
                 makeToolMessage("m9", "assistant", "trim-context", "Context has 4 entries"),
             )
             await expect(run).rejects.toThrow(
-                /nothing has happened since.*Answer the CI question\./s,
+                /nothing has happened since.*Answer the CI question\./su,
             )
             expect(state.records).toEqual([justTrimmed])
         })
@@ -273,7 +280,7 @@ describe("trim-context tool", () => {
                 makeToolMessage("m9", "assistant", "bash", "npm test -> green"),
             )
             await expect(run).resolves.toContain("Replaced everything from #2")
-            expect(state.records[0].startRawId).toBe("m2")
+            expect(state.records[0]?.startRawId).toBe("m2")
         })
 
         it("allows it after a new user message", async () => {
@@ -296,8 +303,7 @@ describe("trim-context tool", () => {
             makeToolCtx("s-plain"),
         )
         expect(result).toContain("Replaced everything from #3")
-        expect(state.records[0].expandedSummary).toBe("Refactored auth; tests green.")
-        expect(state.records[0].refs).toEqual([])
+        expect(state.records[0]?.expandedSummary).toBe("Refactored auth; tests green.")
     })
 })
 
@@ -337,8 +343,8 @@ describe("trim-context after native compaction", () => {
             { start: "#1", summary: "Tail done.", actionRightAfterTrim: "go on" },
             makeToolCtx("s-compact"),
         )
-        expect(state.records[0].startRawId).toBe("cu")
-        expect(state.records[0].endRawId).toBe("m_trim_call")
+        expect(state.records[0]?.startRawId).toBe("cu")
+        expect(state.records[0]?.endRawId).toBe("m_trim_call")
     })
 
     it("keeps a record it cannot see instead of dropping it", async () => {

@@ -1,6 +1,23 @@
 {
     "$schema": "https://raw.githubusercontent.com/oxc-project/oxc/main/npm/oxlint/configuration_schema.json",
+    "plugins": ["typescript", "unicorn", "import", "vitest", "oxc", "node"],
     "categories": {
-        "suspicious": "warn"
-    }
+        "correctness": "error",
+        "suspicious": "error",
+        "pedantic": "error",
+        "perf": "error"
+    },
+    "rules": {
+        "typescript/no-explicit-any": "error",
+        "unicorn/prefer-number-coercion": "off"
+    },
+    "overrides": [
+        {
+            "files": ["tests/**"],
+            "rules": {
+                "eslint/max-lines": "off",
+                "eslint/max-lines-per-function": "off"
+            }
+        }
+    ]
 }

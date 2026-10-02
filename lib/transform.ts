@@ -48,8 +48,8 @@ function createSyntheticSummary(base: WithParts, record: TrimRecord): WithParts 
             id: messageId,
             sessionID,
             role: "user",
-            agent: base.info.agent,
-            model: base.info.model,
+            agent: base.info["agent"],
+            model: base.info["model"],
             time: { created: record.createdAt },
         },
         parts: [
@@ -70,7 +70,8 @@ function createSyntheticSummary(base: WithParts, record: TrimRecord): WithParts 
 export function createTransformHandler(store: SessionStore, logger: Logger) {
     return async (_input: unknown, output: { messages: WithParts[] }) => {
         const messages = output.messages
-        if (!Array.isArray(messages) || messages.length === 0) {
+        const base = messages[0]
+        if (!base) {
             return
         }
 
@@ -87,11 +88,9 @@ export function createTransformHandler(store: SessionStore, logger: Logger) {
         const items = computeVisible(messages, state.records)
         const result: WithParts[] = []
         for (const item of items) {
-            if (item.kind === "message" && item.message) {
-                result.push(item.message)
-            } else if (item.kind === "summary" && item.record) {
-                result.push(createSyntheticSummary(messages[0], item.record))
-            }
+            result.push(
+                item.kind === "message" ? item.message : createSyntheticSummary(base, item.record),
+            )
         }
 
         output.messages.length = 0

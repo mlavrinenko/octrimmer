@@ -1,12 +1,12 @@
 /** Loose message shapes, decoupled from SDK version churn. */
 
-export interface TextPart {
+interface TextPart {
     type: "text"
     text: string
     [key: string]: unknown
 }
 
-export interface ToolPart {
+interface ToolPart {
     type: "tool"
     tool?: string
     callID?: string
@@ -16,7 +16,7 @@ export interface ToolPart {
 
 export type MessagePart = TextPart | ToolPart
 
-export interface MessageInfo {
+interface MessageInfo {
     id: string
     sessionID: string
     role: "user" | "assistant"
@@ -29,7 +29,7 @@ export interface WithParts {
     parts: MessagePart[]
 }
 
-export function isMessageWithInfo(message: unknown): message is WithParts {
+function isMessageWithInfo(message: unknown): message is WithParts {
     if (!message || typeof message !== "object") {
         return false
     }
@@ -38,7 +38,7 @@ export function isMessageWithInfo(message: unknown): message is WithParts {
     if (!info || typeof info !== "object") {
         return false
     }
-    const infoObj = info as Record<string, unknown>
+    const infoObj = info as { id?: unknown; sessionID?: unknown; role?: unknown; time?: unknown }
     return (
         typeof infoObj.id === "string" &&
         infoObj.id.length > 0 &&
@@ -56,5 +56,5 @@ export function filterMessages(messages: unknown): WithParts[] {
     if (!Array.isArray(messages)) {
         return []
     }
-    return messages.filter(isMessageWithInfo)
+    return messages.filter((message: unknown) => isMessageWithInfo(message))
 }

@@ -1,19 +1,15 @@
 import { renderMessageLastText, renderMessageText } from "./render"
 import type { VisibleItem } from "./overlay"
 
-export type Picker = "whole" | "text" | "last-text"
-export type RefKind = "position" | "range" | "role" | "pattern"
-export type RoleKey = "first-user" | "last-user" | "first-assistant" | "last-assistant"
+type Picker = "whole" | "text" | "last-text"
+type RoleKey = "first-user" | "last-user" | "first-assistant" | "last-assistant"
 
-export interface ParsedRef {
-    ref: string
-    kind: RefKind
-    position?: number
-    rangeEnd?: number
-    role?: RoleKey
-    pattern?: string
-    picker: Picker
-}
+type ParsedRef = { ref: string; picker: Picker } & (
+    | { kind: "position"; position: number }
+    | { kind: "range"; position: number; rangeEnd: number }
+    | { kind: "role"; role: RoleKey }
+    | { kind: "pattern"; pattern: string }
+)
 
 export interface ExpansionResult {
     text: string
@@ -37,7 +33,7 @@ function startsRef(template: string, at: number): boolean {
         return true
     }
     return ROLE_KEYS.some(
-        (key) => template.startsWith(key, at) && /^[\]:\s]/.test(template[at + key.length] ?? ""),
+        (key) => template.startsWith(key, at) && /^[\]:\s]/u.test(template[at + key.length] ?? ""),
     )
 }
 
@@ -91,29 +87,34 @@ function tokenize(template: string): Token[] {
     return tokens
 }
 
+/** Capture group `index` of a match that already succeeded: always present. */
+function group(match: RegExpMatchArray, index: number): string {
+    return match[index] ?? ""
+}
+
 /** A parsed reference, or the reason it is malformed. */
 function parseRef(inner: string): ParsedRef | string {
     const trimmed = inner.trim()
     let target = trimmed
     let picker: Picker = "whole"
-    const pickerMatch = trimmed.match(/^(.*?)\s*:\s*(text|last-text)\s*$/)
+    const pickerMatch = trimmed.match(/^(.*?)\s*:\s*(text|last-text)\s*$/u)
     if (pickerMatch) {
-        target = pickerMatch[1].trim()
-        picker = pickerMatch[2] as "text" | "last-text"
+        target = group(pickerMatch, 1).trim()
+        picker = group(pickerMatch, 2) as "text" | "last-text"
     }
-    const rangeMatch = target.match(/^#(\d+)\s*\.\.\s*#(\d+)$/)
+    const rangeMatch = target.match(/^#(\d+)\s*\.\.\s*#(\d+)$/u)
     if (rangeMatch) {
-        const start = Number.parseInt(rangeMatch[1], 10)
-        const end = Number.parseInt(rangeMatch[2], 10)
+        const start = Number.parseInt(group(rangeMatch, 1), 10)
+        const end = Number.parseInt(group(rangeMatch, 2), 10)
         if (start < 1 || end < 1 || start > end) {
             return `invalid range "${target}": endpoints must be ascending positive positions`
         }
         return { ref: inner, kind: "range", position: start, rangeEnd: end, picker }
     }
 
-    const positionMatch = target.match(/^#(\d+)$/)
+    const positionMatch = target.match(/^#(\d+)$/u)
     if (positionMatch) {
-        const position = Number.parseInt(positionMatch[1], 10)
+        const position = Number.parseInt(group(positionMatch, 1), 10)
         if (position < 1) {
             return `invalid position "${target}"`
         }
@@ -125,9 +126,9 @@ function parseRef(inner: string): ParsedRef | string {
         return { ref: inner, kind: "role", role, picker }
     }
 
-    const phraseMatch = target.match(/^"([^"]+)"$/)
+    const phraseMatch = target.match(/^"([^"]+)"$/u)
     if (phraseMatch) {
-        return { ref: inner, kind: "pattern", pattern: phraseMatch[1], picker }
+        return { ref: inner, kind: "pattern", pattern: group(phraseMatch, 1), picker }
     }
 
     return `unsupported reference "${target}"`
@@ -137,18 +138,19 @@ function renderItem(item: VisibleItem, picker: Picker): string {
     if (item.kind === "summary") {
         return item.text
     }
-    const message = item.message
-    if (!message) {
-        return ""
-    }
     switch (picker) {
         case "text":
-            return renderMessageText(message)
+            return renderMessageText(item.message)
         case "last-text":
-            return renderMessageLastText(message)
+            return renderMessageLastText(item.message)
         default:
             return item.text
     }
+}
+
+/** A summary has no raw message behind it, so nothing to report as pulled. */
+function rawIdsOf(item: VisibleItem): string[] {
+    return item.kind === "message" ? [item.rawId] : []
 }
 
 function resolveAt(
@@ -164,7 +166,7 @@ function resolveAt(
             error: `no entry at #${position} (context has ${items.length})`,
         }
     }
-    return { text: renderItem(item, picker), rawIds: item.rawId ? [item.rawId] : [] }
+    return { text: renderItem(item, picker), rawIds: rawIdsOf(item) }
 }
 
 function resolveRole(
@@ -181,7 +183,7 @@ function resolveRole(
     if (!found) {
         return { text: "", rawIds: [], error: `no ${wantRole} message found` }
     }
-    return { text: renderItem(found, picker), rawIds: found.rawId ? [found.rawId] : [] }
+    return { text: renderItem(found, picker), rawIds: rawIdsOf(found) }
 }
 
 function resolvePattern(
@@ -190,16 +192,12 @@ function resolvePattern(
     items: VisibleItem[],
 ): { text: string; rawIds: string[]; error?: string } {
     const needle = pattern.toLowerCase()
-    const matches: Array<{ position: number; item: VisibleItem }> = []
-    for (const item of items) {
-        if (item.text.toLowerCase().includes(needle)) {
-            matches.push({ position: item.position, item })
-        }
-    }
-    if (matches.length === 0) {
+    const matches = items.filter((item) => item.text.toLowerCase().includes(needle))
+    const [item, second] = matches
+    if (!item) {
         return { text: "", rawIds: [], error: `no entry contains "${pattern}"` }
     }
-    if (matches.length > 1) {
+    if (second) {
         return {
             text: "",
             rawIds: [],
@@ -208,8 +206,7 @@ function resolvePattern(
                 .join(", ")} — use #N instead`,
         }
     }
-    const item = matches[0].item
-    return { text: renderItem(item, picker), rawIds: item.rawId ? [item.rawId] : [] }
+    return { text: renderItem(item, picker), rawIds: rawIdsOf(item) }
 }
 
 function resolveParsed(
@@ -219,15 +216,11 @@ function resolveParsed(
 ): { text: string; rawIds: string[]; error?: string } {
     switch (parsed.kind) {
         case "position":
-            return resolveAt(parsed.position ?? 0, parsed.picker, items)
+            return resolveAt(parsed.position, parsed.picker, items)
         case "range": {
             const chunks: string[] = []
             const rawIds: string[] = []
-            for (
-                let position = parsed.position ?? 0;
-                position <= (parsed.rangeEnd ?? 0);
-                position++
-            ) {
+            for (let position = parsed.position; position <= parsed.rangeEnd; position++) {
                 const resolved = resolveAt(position, parsed.picker, items)
                 if (resolved.error) {
                     return resolved
@@ -238,9 +231,9 @@ function resolveParsed(
             return { text: chunks.join("\n\n"), rawIds }
         }
         case "role":
-            return resolveRole(parsed.role ?? "last-assistant", parsed.picker, items, callerRawId)
+            return resolveRole(parsed.role, parsed.picker, items, callerRawId)
         case "pattern":
-            return resolvePattern(parsed.pattern ?? "", parsed.picker, items)
+            return resolvePattern(parsed.pattern, parsed.picker, items)
     }
 }
 

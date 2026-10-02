@@ -1,8 +1,3 @@
-export interface TrimRef {
-    ref: string
-    rawId: string
-}
-
 /**
  * One bounded trim: everything from the message `startRawId` to the message
  * `endRawId` (inclusive) is replaced by `expandedSummary`. Raw messages are
@@ -20,8 +15,6 @@ export interface TrimRecord {
     expandedSummary: string
     /** What the model does right after the trim, rendered under the summary. Absent on older records. */
     actionRightAfterTrim?: string
-    originMessageId: string
-    refs: TrimRef[]
     createdAt: number
 }
 
