@@ -30,51 +30,33 @@ interface TrimArgs {
     count?: number
 }
 
-const TOOL_DESCRIPTION = `Manual context trimmer for this session.
+const TOOL_DESCRIPTION = `Trim this session's context: everything from a start message to the end of
+the conversation is replaced by a summary you write. Nothing before start
+changes.
 
-Two modes:
+Call with no arguments first: you get the conversation as you see it,
+numbered #1..#N — real messages ([user]/[assistant]) and [summary] entries
+from earlier trims. Nothing changes.
 
-LIST — call with no arguments (optionally count=N). Returns a numbered map of
-the conversation as YOU see it: #1..#N, 1-based context positions. Entries are
-real messages ([user]/[assistant]) or [summary] — the text of an earlier trim.
-Nothing is changed.
+Then call with start, summary and actionRightAfterTrim. A trim covering an
+earlier summary replaces it. A trim right after another, with no user message
+and no tool work in between, is refused.
 
-TRIM — call with start + summary + actionRightAfterTrim. Everything from start to the end of the
-conversation is replaced by your summary. If the region was already trimmed,
-the old summary is replaced, not stacked. A trim right after another — no
-user message and no tool work in between — is refused: do your actionRightAfterTrim instead.
+The summary can pull entries verbatim instead of re-writing them:
 
-start: "#N" — a CONTEXT position from the ref list (the conversation as you
-see it, including [summary] entries). Must point at a real message, not a
-[summary] entry. The region from #N (inclusive) to the end is replaced.
-
-actionRightAfterTrim: what you do IMMEDIATELY after this call — you keep going
-in the same turn, before the user says anything. Usually "confirm the trim to
-the user", "answer the user's question about X", or the next step of the task.
-Never "wait for the user": you act first. The trim swallows the request that
-asked for it and this call, so this is the only thing telling you what comes
-after. It is rendered below your summary with a note that the trim is complete.
-
-summary: a template. It may PULL existing content verbatim instead of
-re-generating it, using [[...]] references:
-
-  [[#12]]                whole entry #12, verbatim (a message or a summary)
+  [[#12]]                whole entry #12 (a message or a summary)
   [[#12:text]]           only the text parts of message #12
   [[#12:last-text]]      the final text part of message #12
-  [[#8..#14]]            every entry from #8 to #14, verbatim
+  [[#8..#14]]            every entry from #8 to #14
   [[last-assistant]]     the latest assistant message before this call
   [[first-user]]         the first user message; also last-user, first-assistant
-  [["poem about rain"]]  the single entry containing that phrase
-                         (must match exactly one; otherwise you get a candidate list)
+  [["poem about rain"]]  the one entry containing that phrase
 
-Plain prose with no references also works — a normal lossy summary, like
-built-in compaction. Content pulled by a reference is copied byte-for-byte:
-do not paraphrase or re-output it. "[[" followed by anything else stays
-literal text; to write a literal "[[#", escape it as "\\[[#".
-
-References resolve against the pre-trim context; a reference to an entry
-inside the trimmed region survives only because it is copied first. If any
-reference fails, nothing is trimmed and every failing reference is reported.`
+Pulled content is copied byte-for-byte: do not re-output it. A summary with no
+references is a plain lossy one. References resolve before the trim, so an
+entry inside the trimmed region survives only by being pulled. Any failing
+reference refuses the whole trim, and every failure is reported. "[["
+followed by anything else is literal text; write a literal "[[#" as "\\[[#".`
 
 export function createTrimContextTool(ctx: TrimToolContext): ReturnType<typeof tool> {
     return tool({
@@ -84,26 +66,22 @@ export function createTrimContextTool(ctx: TrimToolContext): ReturnType<typeof t
                 .string()
                 .optional()
                 .describe(
-                    "#N — context position from the ref list (what you see, [summary] entries included). Must be a real message. Everything from here to the end of the conversation is replaced by your summary. Omit to list refs only.",
+                    "#N from the list; a real message, not a [summary]. Everything from here to the end of the conversation is replaced. Omit to list.",
                 ),
             summary: tool.schema
                 .string()
                 .optional()
-                .describe(
-                    "Template replacing the trimmed region. May contain [[...]] references that pull existing content verbatim. See the tool description for the syntax.",
-                ),
+                .describe("What replaces the region. May pull entries with [[...]] references."),
             actionRightAfterTrim: tool.schema
                 .string()
                 .optional()
                 .describe(
-                    'Required with start. What you do immediately after this call, in the same turn (e.g. "confirm the trim to the user", "answer the user\'s question about X"). Never "wait for the user" — you act before they say anything. The trim hides the request and this call, so this is how you know what comes next.',
+                    'Required with start. What you do immediately after this call, in the same turn, before the user says anything: "confirm the trim to the user", "answer the user\'s question about X", the next step of the task — never "wait for the user". The trim swallows the request for it and this call; this line, shown under your summary, is all you will have to go on.',
                 ),
             count: tool.schema
                 .number()
                 .optional()
-                .describe(
-                    `How many recent entries to list in the ref map. Default ${DEFAULT_LIST_SIZE}.`,
-                ),
+                .describe(`How many recent entries to list. Default ${DEFAULT_LIST_SIZE}.`),
         },
         async execute(args, toolCtx) {
             return executeTrim(ctx, args as TrimArgs, toolCtx as unknown as ToolRunContext)
@@ -159,7 +137,7 @@ async function executeTrim(
 
     if (args.start === undefined || args.start === "") {
         const lines = formatRefMap(refMap)
-        return `Context has ${visible.length} entries. Last ${refMap.length}:\n${lines}\n\n[summary] entries are earlier trims. To trim, call again with start: "#N" (a real message), a summary and actionRightAfterTrim.`
+        return `Context has ${visible.length} entries. Last ${refMap.length}:\n${lines}`
     }
 
     const startPos = parsePosition(args.start)

@@ -2,7 +2,7 @@
 
 #show: task.with(
   title: "Cut duplicated tool prose",
-  status: proposed(2026, 10, 2),
+  status: done(2026, 10, 2),
 )
 
 == Summary
