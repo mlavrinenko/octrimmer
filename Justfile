@@ -7,26 +7,26 @@ default: check
 check: fmt-check lint shellcheck typecheck test jscpd tasks-check
 
 fmt-check:
-    npm run format:check
+    npx prettier --check --log-level warn .
 
 lint:
-    npm run lint
+    npm run -s lint
 
 shellcheck:
     shellcheck scripts/*.sh
 
 typecheck:
-    npm run typecheck
+    npm run -s typecheck
 
 test:
-    npm test
+    npx vitest run --reporter=dot
 
 # jscpd (the Rust port, packaged via qahq in flake.nix) fails on any
 # duplicated block of >=50 tokens, naming both spans. Fix a finding by
 # extracting a shared helper — never by shuffling tokens until the detector
 # loses the scent.
 jscpd:
-    jscpd --no-tips -k 50 -f typescript --exit-code 1 index.ts lib tests
+    jscpd --no-tips -k 50 -f typescript --exit-code 1 -r ai index.ts lib tests
 
 # Validate the mindtape task board.
 tasks-check:
