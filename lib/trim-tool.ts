@@ -3,7 +3,7 @@ import type { Logger } from "./logger"
 import { computeVisible, resolveSpans } from "./overlay"
 import { saveSessionState } from "./persistence"
 import { buildRefMap, parsePosition } from "./refs"
-import { fetchSessionMessages, getSessionState } from "./session"
+import { fetchSessionMessages, getSessionState, modelView } from "./session"
 import type { SessionStore, TrimRecord } from "./state"
 import { expandTemplate } from "./template"
 import type { WithParts } from "./types"
@@ -149,7 +149,8 @@ async function executeTrim(
     const raw = await fetchSessionMessages(ctx.client, sessionId)
     const state = await getSessionState(ctx.store, sessionId, ctx.logger)
 
-    const visible = computeVisible(raw, state.records)
+    const shown = modelView(raw, state.seen)
+    const visible = computeVisible(shown, state.records)
     const count =
         typeof args.count === "number" && Number.isInteger(args.count) && args.count > 0
             ? args.count
@@ -158,7 +159,7 @@ async function executeTrim(
 
     if (args.start === undefined || args.start === "") {
         const lines = formatRefMap(refMap)
-        return `Context has ${visible.length} entries (${raw.length} raw messages). Last ${refMap.length}:\n${lines}\n\n[summary] entries are earlier trims. To trim, call again with start: "#N" (a real message), a summary and actionRightAfterTrim.`
+        return `Context has ${visible.length} entries. Last ${refMap.length}:\n${lines}\n\n[summary] entries are earlier trims. To trim, call again with start: "#N" (a real message), a summary and actionRightAfterTrim.`
     }
 
     const startPos = parsePosition(args.start)
@@ -199,7 +200,7 @@ async function executeTrim(
     }
     const startRawId = startItem.rawId
     const startIndex = startItem.rawIndex ?? startPos - 1
-    const endRawId = raw[raw.length - 1].info.id
+    const endRawId = shown[shown.length - 1].info.id
 
     const expansion = expandTemplate(args.summary, visible, toolCtx.messageID)
     if (expansion.errors.length > 0) {
@@ -211,11 +212,14 @@ async function executeTrim(
     }
 
     // Cover-replace: any earlier record that starts at/after the new start is
-    // fully inside the new region — drop it so summaries never stack. Records
-    // that no longer resolve are dropped here too.
-    state.records = resolveSpans(raw, state.records)
-        .filter((span) => span.start < startIndex)
-        .map((span) => span.record)
+    // fully inside the new region — drop it so summaries never stack. A record
+    // that does not resolve here is out of sight, not gone: keep it.
+    const covered = new Set(
+        resolveSpans(shown, state.records)
+            .filter((span) => span.start >= startIndex)
+            .map((span) => span.record),
+    )
+    state.records = state.records.filter((record) => !covered.has(record))
 
     const record: TrimRecord = {
         startRawId,

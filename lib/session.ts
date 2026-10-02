@@ -15,6 +15,25 @@ export async function fetchSessionMessages(
     return filterMessages(response?.data)
 }
 
+/**
+ * The conversation as the model last saw it: the list opencode handed the
+ * transform, then whatever the raw history holds after that list's newest
+ * message — the turn in progress, trim call included. After native compaction
+ * opencode drops everything before the compaction and moves the retained tail
+ * behind the compaction summary, so raw history is the wrong space to address.
+ * Before any transform has run, raw history is all there is.
+ */
+export function modelView(raw: WithParts[], seen: string[] | undefined): WithParts[] {
+    const seenIds = new Set(seen)
+    const newest = raw.findLastIndex((message) => seenIds.has(message.info.id))
+    if (newest === -1) {
+        return raw
+    }
+    const byId = new Map(raw.map((message) => [message.info.id, message]))
+    const shown = (seen ?? []).flatMap((id) => byId.get(id) ?? [])
+    return [...shown, ...raw.slice(newest + 1)]
+}
+
 export function getSessionId(messages: WithParts[]): string | null {
     for (const message of messages) {
         if (typeof message.info.sessionID === "string" && message.info.sessionID.length > 0) {

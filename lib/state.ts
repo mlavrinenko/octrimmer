@@ -28,6 +28,11 @@ export interface TrimRecord {
 export interface SessionState {
     sessionId: string
     records: TrimRecord[]
+    /**
+     * IDs of the list the transform was last handed, in its order: what the
+     * model sees before octrimmer's overlay. In memory only.
+     */
+    seen?: string[]
 }
 
 /**

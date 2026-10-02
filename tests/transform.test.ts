@@ -149,3 +149,10 @@ describe("transform overlay", () => {
         expect(out).toHaveLength(5)
     })
 })
+
+describe("transform bookkeeping", () => {
+    it("remembers the list it was handed, even with no trims", async () => {
+        const { state } = await applyTransform([], messages())
+        expect(state.seen).toEqual(["m1", "m2", "m3", "m4", "m5"])
+    })
+})

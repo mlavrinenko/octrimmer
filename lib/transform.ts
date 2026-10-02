@@ -79,6 +79,7 @@ export function createTransformHandler(store: SessionStore, logger: Logger) {
             return
         }
         const state = await getSessionState(store, sessionId, logger)
+        state.seen = messages.map((message) => message.info.id)
         if (state.records.length === 0) {
             return
         }

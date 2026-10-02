@@ -300,3 +300,55 @@ describe("trim-context tool", () => {
         expect(state.records[0].refs).toEqual([])
     })
 })
+
+describe("trim-context after native compaction", () => {
+    // Raw history in order. opencode hands the model filterCompacted output:
+    // everything before the compaction dropped, the retained tail (t1, t2)
+    // moved behind the compaction request and its summary.
+    const raw: WithParts[] = [
+        makeTextMessage("o1", "user", "old request"),
+        makeTextMessage("o2", "assistant", "old answer"),
+        makeTextMessage("t1", "user", "tail request"),
+        makeTextMessage("t2", "assistant", "tail answer"),
+        makeTextMessage("cu", "user", "compact"),
+        makeTextMessage("cs", "assistant", "compaction summary"),
+        makeTextMessage("m_trim_call", "assistant", "Trimming."),
+    ]
+    const seen = ["cu", "cs", "t1", "t2"]
+
+    function compacted(records: TrimRecord[] = []) {
+        const made = makeTool("s-compact", () => raw, records)
+        made.state.seen = seen
+        return made
+    }
+
+    it("lists the conversation the model was handed, then the turn in progress", async () => {
+        const { tool } = compacted()
+        const result = await tool.execute({}, makeToolCtx("s-compact"))
+        expect(result).toContain("Context has 5 entries")
+        expect(result).toContain("#1 [user] compact")
+        expect(result).toContain("#3 [user] tail request")
+        expect(result).not.toContain("old request")
+    })
+
+    it("addresses start in that list", async () => {
+        const { tool, state } = compacted()
+        await tool.execute(
+            { start: "#1", summary: "Tail done.", actionRightAfterTrim: "go on" },
+            makeToolCtx("s-compact"),
+        )
+        expect(state.records[0].startRawId).toBe("cu")
+        expect(state.records[0].endRawId).toBe("m_trim_call")
+    })
+
+    it("keeps a record it cannot see instead of dropping it", async () => {
+        const hidden = makeRecord("o1", "o2", "OLD")
+        const { tool, state } = compacted([hidden])
+        await tool.execute(
+            { start: "#1", summary: "Tail done.", actionRightAfterTrim: "go on" },
+            makeToolCtx("s-compact"),
+        )
+        expect(state.records).toContain(hidden)
+        expect(state.records).toHaveLength(2)
+    })
+})

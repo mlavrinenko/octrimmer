@@ -2,7 +2,7 @@
 
 #show: task.with(
   title: "Fix: after native compaction the tool lists what the model sees",
-  status: proposed(2026, 10, 2),
+  status: done(2026, 10, 2),
 )
 
 == Summary
