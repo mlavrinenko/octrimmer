@@ -18,19 +18,20 @@ shellcheck:
 typecheck:
     npm run -s typecheck
 
+# Silent when green; the full report only on failure.
 test:
-    npx vitest run --reporter=dot
+    out=$(npx vitest run --reporter=dot 2>&1) || { printf '%s\n' "$out"; exit 1; }
 
 # jscpd (the Rust port, packaged via qahq in flake.nix) fails on any
 # duplicated block of >=50 tokens, naming both spans. Fix a finding by
 # extracting a shared helper — never by shuffling tokens until the detector
 # loses the scent.
 jscpd:
-    jscpd --no-tips -k 50 -f typescript --exit-code 1 -r ai index.ts lib tests
+    out=$(jscpd --no-tips -k 50 -f typescript --exit-code 1 -r ai index.ts lib tests 2>&1) || { printf '%s\n' "$out"; exit 1; }
 
 # Validate the mindtape task board.
 tasks-check:
-    mt check
+    mt check -q
 
 build:
     npm run build
