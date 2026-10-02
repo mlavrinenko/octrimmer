@@ -1,5 +1,5 @@
 import type { VisibleItem } from "./overlay"
-import { renderMessage, type MessageSection } from "./render"
+import { renderMessage, summarize, type MessageSection } from "./render"
 
 /** A list snippet leads with response/tool content; reasoning blocks stay out. */
 const SNIPPET_DROP: ReadonlySet<MessageSection> = new Set(["reasoning"])
@@ -12,24 +12,18 @@ export interface RefEntry {
     rawId?: string
 }
 
-function summarize(text: string, max = 120): string {
-    const oneLine = text.replaceAll(/\s+/gu, " ").trim()
-    if (oneLine.length === 0) {
-        return "(no text)"
-    }
-    return oneLine.length > max ? `${oneLine.slice(0, max - 1)}…` : oneLine
-}
-
 /**
  * Ref map over the VISIBLE context (what the model sees, including earlier
  * trim summaries). Positions are context positions, 1-based and stable until
- * the next trim.
+ * the next trim. `before` (a 1-based position) ends the slice just before it,
+ * which is how the list pages backwards.
  */
-export function buildRefMap(items: VisibleItem[], count: number): RefEntry[] {
+export function buildRefMap(items: VisibleItem[], count: number, before?: number): RefEntry[] {
     const total = items.length
-    const start = Math.max(0, total - count)
+    const end = before === undefined ? total : Math.min(before - 1, total)
+    const start = Math.max(0, end - count)
     const entries: RefEntry[] = []
-    for (let i = start; i < total; i++) {
+    for (let i = start; i < end; i++) {
         const item = items[i]
         if (!item) {
             continue

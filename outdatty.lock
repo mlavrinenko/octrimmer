@@ -3,13 +3,14 @@ algorithm: blake3
 groups:
   behaviour:
     source:
+      lib/explore.ts: fe543352fea312fb8524643e9732d0b063b6f869a9b1ea916053765a608400d3
       lib/overlay.ts: 8f30a7a403c288ac341cea60733e6ab6f108e154a9e62ae18adb095f0d1f0f77
       lib/reference.ts: d84f91f03d5648e5ae2340b9600d44c998c64023f6a49ff4fd6a10f2cc746c8a
-      lib/render.ts: f422f3b02f2e2aa13c8ff7e95a25800f93dd237bc85b510d8de6dfc2cac5146b
+      lib/render.ts: b2394995f86094595ba98610afe07c4c9d9808ac0e2d3d86fc6eb0cec78dda08
       lib/session.ts: e4d08610cb2dff258cdccd393140dc88d4f31a2c54d2f645266ad64cae2311f9
       lib/template.ts: 1191b2b945a2aa228c67ad75eba37f1d6f58313ad9b5e831f3c3d100d2650a72
       lib/transform.ts: a68fa8bebe72af7a43b0b2c53724c1bec63e22e3db9dcbe725552e2f23d5e968
-      lib/trim-tool.ts: 500ae6167c3c19d6756e82df1bb1f80bcf80bd155b95a82aade2ef540e094e8f
+      lib/trim-tool.ts: abe731a69eefbc270d6ab91635f2c6222c5bd0a957188b1825e073737cd34408
     dependents:
-      docs/readme.typ: b3cc1a9d71d33d9b77054c80d4fcc4cdc8512c78ac0f9ba3fdfee152cf26fe8e
-      skills/octrimmer/SKILL.md: f5c2effaf6b50c454070624c5690fbf316c70e62612d320b6b5972da63eaf2fd
+      docs/readme.typ: af3c4e676513a74e437859239cbdba36266e74185e89c7e907617efeecb135f7
+      skills/octrimmer/SKILL.md: 6d594791eb5f110634c304d61a0f33846b65a1577f94ada694433f7b64d8dd32

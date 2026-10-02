@@ -358,3 +358,92 @@ describe("trim-context after native compaction", () => {
         expect(state.records).toHaveLength(2)
     })
 })
+
+describe("trim-context mode dispatch", () => {
+    it("answers a query without changing anything", async () => {
+        const { tool, state } = makeTool("s-query", poem)
+        const result = await tool.execute({ query: "auth" }, makeToolCtx("s-query"))
+        expect(result).toContain('query "auth"')
+        expect(result).toContain("#3 [user]")
+        expect(state.records).toHaveLength(0)
+    })
+
+    it("answers an inspect without changing anything", async () => {
+        const { tool, state } = makeTool("s-inspect", poem)
+        const result = await tool.execute({ inspect: "#5" }, makeToolCtx("s-inspect"))
+        expect(result).toContain("#5 [user] 1 part,")
+        expect(state.records).toHaveLength(0)
+    })
+
+    it("pages the list with before and count", async () => {
+        const { tool, state } = makeTool("s-page", poem)
+        const result = (await tool.execute(
+            { before: "#5", count: 3 },
+            makeToolCtx("s-page"),
+        )) as unknown as string
+        expect(result.split("\n")[0]).toBe("Context has 8 entries. 3 ending before #5:")
+        expect(result).toContain("#2 [assistant]")
+        expect(result).toContain("#4 [assistant]")
+        expect(result.endsWith('older: before: "#2"')).toBe(true)
+        expect(state.records).toHaveLength(0)
+    })
+
+    it("refuses start mixed with query, inspect or before", async () => {
+        const { tool } = makeTool("s-mix-start", poem)
+        const ctx = makeToolCtx("s-mix-start")
+        await expect(
+            tool.execute(
+                { start: "#3", summary: "x", actionRightAfterTrim: "go", query: "a" },
+                ctx,
+            ),
+        ).rejects.toThrow("start (trim) cannot be combined with query")
+        await expect(
+            tool.execute(
+                { start: "#3", summary: "x", actionRightAfterTrim: "go", inspect: "#1" },
+                ctx,
+            ),
+        ).rejects.toThrow("start (trim) cannot be combined with inspect")
+        await expect(
+            tool.execute(
+                { start: "#3", summary: "x", actionRightAfterTrim: "go", before: "#5" },
+                ctx,
+            ),
+        ).rejects.toThrow("start (trim) cannot be combined with before")
+    })
+
+    it("refuses query mixed with inspect or before", async () => {
+        const { tool } = makeTool("s-mix-query", poem)
+        const ctx = makeToolCtx("s-mix-query")
+        await expect(tool.execute({ query: "auth", inspect: "#1" }, ctx)).rejects.toThrow(
+            "query cannot be combined with inspect",
+        )
+        await expect(tool.execute({ query: "auth", before: "#5" }, ctx)).rejects.toThrow(
+            "query cannot be combined with before",
+        )
+    })
+
+    it("refuses inspect mixed with count", async () => {
+        const { tool } = makeTool("s-mix-inspect", poem)
+        await expect(
+            tool.execute({ inspect: "#1", count: 2 }, makeToolCtx("s-mix-inspect")),
+        ).rejects.toThrow("inspect cannot be combined with count")
+    })
+
+    it("refuses a trim half: summary or actionRightAfterTrim without start", async () => {
+        const { tool } = makeTool("s-half", poem)
+        const ctx = makeToolCtx("s-half")
+        await expect(tool.execute({ summary: "x" }, ctx)).rejects.toThrow(
+            "summary/actionRightAfterTrim require start",
+        )
+        await expect(tool.execute({ actionRightAfterTrim: "go" }, ctx)).rejects.toThrow(
+            "summary/actionRightAfterTrim require start",
+        )
+    })
+
+    it("refuses a whitespace-only query", async () => {
+        const { tool } = makeTool("s-empty-query", poem)
+        await expect(tool.execute({ query: "  " }, makeToolCtx("s-empty-query"))).rejects.toThrow(
+            "query is empty",
+        )
+    })
+})

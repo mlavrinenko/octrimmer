@@ -1,15 +1,13 @@
 import { tool } from "@opencode-ai/plugin"
+import { modeConflict, readOnlyReply, type ModeArgs } from "./explore"
 import type { Logger } from "./logger"
 import { computeVisible, resolveSpans, type VisibleItem } from "./overlay"
 import { saveSessionState } from "./persistence"
-import { buildRefMap, parsePosition } from "./refs"
+import { parsePosition } from "./refs"
 import { fetchSessionMessages, getSessionState, modelView } from "./session"
-import type { SessionStore, TrimRecord } from "./state"
+import type { SessionState, SessionStore, TrimRecord } from "./state"
 import { expandTemplate, REFERENCE_SYNTAX, type ExpansionResult } from "./template"
 import type { WithParts } from "./types"
-
-/** How many recent entries the ref map lists when `count` is not given. */
-const DEFAULT_LIST_SIZE = 20
 
 export interface TrimToolContext {
     client: unknown
@@ -23,7 +21,7 @@ interface ToolRunContext {
     callID?: string
 }
 
-interface TrimArgs {
+interface TrimArgs extends ModeArgs {
     start?: string
     summary?: string
     actionRightAfterTrim?: string
@@ -50,7 +48,14 @@ Pulled content is copied byte-for-byte: do not re-output it. A summary with no
 references is a plain lossy one. References resolve before the trim, so an
 entry inside the trimmed region survives only by being pulled. Any failing
 reference refuses the whole trim, and every failure is reported. "[["
-followed by anything else is literal text; write a literal "[[#" as "\\[[#".`
+followed by anything else is literal text; write a literal "[[#" as "\\[[#".
+
+Three read-only modes answer without changing anything, one per call: "query"
+searches every entry's full render (reasoning and tool output included) for
+all the whitespace-separated terms and reports the matching parts; "inspect"
+shows one entry part by part, with sizes and previews; a call with no start,
+query or inspect lists the newest entries, and "before" pages older ones.
+Read-only modes are refused when mixed with a trim.`
 
 export function createTrimContextTool(ctx: TrimToolContext): ReturnType<typeof tool> {
     return tool({
@@ -60,7 +65,7 @@ export function createTrimContextTool(ctx: TrimToolContext): ReturnType<typeof t
                 .string()
                 .optional()
                 .describe(
-                    "#N from the list; a real message, not a [summary]. Everything from here to the end of the conversation is replaced. Omit to list.",
+                    "#N from the list; a real message, not a [summary]. Everything from here to the end of the conversation is replaced. Omit for the read-only modes.",
                 ),
             summary: tool.schema
                 .string()
@@ -75,7 +80,25 @@ export function createTrimContextTool(ctx: TrimToolContext): ReturnType<typeof t
             count: tool.schema
                 .number()
                 .optional()
-                .describe(`How many recent entries to list. Default ${DEFAULT_LIST_SIZE}.`),
+                .describe("Page size for the list and query modes. Default 20, max 50."),
+            query: tool.schema
+                .string()
+                .optional()
+                .describe(
+                    "Search terms: all must appear, case-insensitively, in one entry's full render (reasoning and tool output included). Reports matching #N and parts. One mode per call.",
+                ),
+            inspect: tool.schema
+                .string()
+                .optional()
+                .describe(
+                    "#N of one entry to show part by part, with sizes and one-line previews. One mode per call.",
+                ),
+            before: tool.schema
+                .string()
+                .optional()
+                .describe(
+                    'With the plain list: the #N the page ends just before, e.g. before: "#40" lists up to count entries #20..#39 and hints the next before. One mode per call.',
+                ),
         },
         execute(args, toolCtx) {
             return executeTrim(ctx, args as TrimArgs, toolCtx as unknown as ToolRunContext)
@@ -102,18 +125,6 @@ function idleSinceLastTrim(raw: WithParts[], records: TrimRecord[]): TrimRecord 
                 message.parts.some((part) => part.type === "tool" && part.tool !== "trim-context"),
         )
     return progressed ? undefined : latest.record
-}
-
-function listReply(visible: VisibleItem[], requested?: number): string {
-    const count =
-        typeof requested === "number" && Number.isInteger(requested) && requested > 0
-            ? requested
-            : DEFAULT_LIST_SIZE
-    const refMap = buildRefMap(visible, count)
-    const lines = refMap
-        .map((entry) => `#${entry.position} [${entry.role}] ${entry.snippet}`)
-        .join("\n")
-    return `Context has ${visible.length} entries. Last ${refMap.length}:\n${lines}`
 }
 
 /** The arguments of a trim call, or the first thing wrong with them. */
@@ -202,17 +213,31 @@ async function executeTrim(
         throw new Error("octrimmer: no session available.")
     }
 
+    const conflict = modeConflict(args)
+    if (conflict !== undefined) {
+        throw new Error(`octrimmer: ${conflict}`)
+    }
+
     const raw = await fetchSessionMessages(ctx.client, sessionId)
     const state = await getSessionState(ctx.store, sessionId, ctx.logger)
-
     const shown = modelView(raw, state.seen)
     const visible = computeVisible(shown, state.records)
 
-    if (args.start === undefined || args.start === "") {
-        return listReply(visible, args.count)
+    const readOnly = readOnlyReply(args, visible)
+    if (readOnly !== undefined) {
+        return readOnly
     }
+    return applyTrim(ctx, args, toolCtx, { raw, state, shown, visible })
+}
 
-    const { startPos, summary, action } = checkTrimArgs(args, args.start, visible.length)
+async function applyTrim(
+    ctx: TrimToolContext,
+    args: TrimArgs,
+    toolCtx: ToolRunContext,
+    session: { raw: WithParts[]; state: SessionState; shown: WithParts[]; visible: VisibleItem[] },
+): Promise<string> {
+    const { raw, state, shown, visible } = session
+    const { startPos, summary, action } = checkTrimArgs(args, args.start ?? "", visible.length)
     refuseIfIdle(raw, state.records)
 
     const { startRawId, startIndex, endRawId } = anchorsOf(shown, visible, startPos)

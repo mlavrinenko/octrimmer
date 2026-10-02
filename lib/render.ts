@@ -81,6 +81,20 @@ export function renderMessage(
     return parts.join("\n\n")
 }
 
+/** Whitespace runs collapsed to single spaces and the ends trimmed: one line. */
+export function collapseWhitespace(text: string): string {
+    return text.replaceAll(/\s+/gu, " ").trim()
+}
+
+/** One display line, truncated to `max` characters with a trailing ellipsis. */
+export function summarize(text: string, max = 120): string {
+    const oneLine = collapseWhitespace(text)
+    if (oneLine.length === 0) {
+        return "(no text)"
+    }
+    return oneLine.length > max ? `${oneLine.slice(0, max - 1)}…` : oneLine
+}
+
 /** The parts a `#N.M` reference can address, in the numbering's render order. */
 export function addressableParts(message: WithParts): MessagePart[] {
     return message.parts.filter((part) => renderPart(part) !== "")

@@ -49,6 +49,10 @@ right before a trim and is forgotten until a new trim is needed.
 - Entries are named by ID, so compaction and reverts cannot move a trim onto
   other messages. A record whose messages are out of sight is skipped, never
   deleted.
+- The list is a preview: `query` searches every entry's full render, reasoning
+  and tool output included, and points at the matching `#N.M` parts; `inspect`
+  maps one entry part by part with sizes and previews; `before` pages older
+  entries. All three are read-only.
 - A newer trim replaces an older one. Two trims in a row, with nothing in
   between, are refused.
 - State is per session; subagents trim like any other session.

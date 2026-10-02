@@ -12,6 +12,7 @@ require_tracked: ["!**"]
 groups:
     - name: behaviour
       source:
+          - lib/explore.ts
           - lib/overlay.ts
           - lib/reference.ts
           - lib/render.ts

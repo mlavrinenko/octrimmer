@@ -9,7 +9,8 @@ description: >-
 ## Procedure
 
 1. Call `trim-context` with no arguments. Positions come from that list, never
-   guessed.
+   guessed. If the topic is not there, `query` it; `inspect` when a pull might
+   be bigger than it is worth.
 2. `start` = the first message of the finished topic. The region always runs to
    the end of the conversation, so the cut point is the only choice.
 3. Say what you drop and what you keep before the call ("trim from #14, keeping
