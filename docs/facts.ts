@@ -36,21 +36,25 @@ function toolCall(id: string, tool: string, output: string): WithParts {
 }
 
 const conversation: WithParts[] = [
-    message("m1", "user", "Write me a poem about rain."),
-    message("m2", "assistant", "Rain on the window pane,\nwhispering your name."),
-    message("m3", "user", "Now fix the 401 in the auth module."),
-    toolCall("m4", "bash", "npm test\n  2 failing: token rejected (401)"),
-    toolCall("m5", "edit", "auth.ts: compare token expiry against the server clock"),
-    message("m6", "assistant", "Fixed: the token check used a stale clock. Tests green."),
-    message("m7", "user", "Great. Trim the context, keep the poem."),
-    message("m8", "assistant", "Trimming from #3, keeping the poem at #2."),
+    message(
+        "m1",
+        "user",
+        "GET /pieces/:id returns {id, title, updatedAt}, and an unknown id returns 404.",
+    ),
+    message("m2", "assistant", "Got it: those fields on success, 404 when the row is missing."),
+    message("m3", "user", "Now debug the failing contract test."),
+    toolCall("m4", "bash", "npm test -- pieces.contract\n  FAIL: unknown id returns 404 (got 200)"),
+    toolCall("m5", "edit", "src/api/pieces.ts: return 404 when the row is missing"),
+    message("m6", "assistant", "The handler returned an empty piece. Fixed; contract test green."),
+    message("m7", "user", "Trim the debug loop; keep the contract."),
+    message("m8", "assistant", "Trimming from #3, keeping the contract at #1."),
 ]
 
 const call = {
     start: "#3",
     summary:
-        "## Poem\n[[#2]]\n\nFixed the 401: the token check used a stale clock; auth.ts patched, tests green.",
-    actionRightAfterTrim: "Confirm the trim to the user.",
+        "## Contract\n[[#1]]\n\nFixed the pieces API: an unknown id now returns 404; contract test green.",
+    actionRightAfterTrim: "Tell the user the 404 bug is fixed.",
 }
 
 const store = createSessionStore()

@@ -32,7 +32,7 @@ export const REFERENCE_SYNTAX: ReadonlyArray<readonly [write: string, get: strin
     ["[[#8..#14]]", "every entry from #8 to #14"],
     ["[[last-assistant]]", "the latest assistant message before this call"],
     ["[[first-user]]", "the first user message; also last-user, first-assistant"],
-    ['[["poem about rain"]]', "the one entry containing that phrase"],
+    ['[["updatedAt"]]', "the one entry containing that phrase"],
 ]
 
 /**
