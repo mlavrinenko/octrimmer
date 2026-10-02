@@ -58,18 +58,19 @@ after. It is rendered below your summary with a note that the trim is complete.
 summary: a template. It may PULL existing content verbatim instead of
 re-generating it, using [[...]] references:
 
-  [[#12]]              whole entry #12, verbatim (a message or a summary)
-  [[#12:text]]         only the text parts of message #12
-  [[#12:last-text]]    the final text part of message #12
-  [[#8..#14]]          every entry from #8 to #14, verbatim
-  [[last-assistant]]   the latest assistant message
-  [[first-user]]       the first user message
-  [[poem about rain]]  the single entry whose text contains that phrase
-                       (must match exactly one; otherwise you get a candidate list)
+  [[#12]]                whole entry #12, verbatim (a message or a summary)
+  [[#12:text]]           only the text parts of message #12
+  [[#12:last-text]]      the final text part of message #12
+  [[#8..#14]]            every entry from #8 to #14, verbatim
+  [[last-assistant]]     the latest assistant message before this call
+  [[first-user]]         the first user message; also last-user, first-assistant
+  [["poem about rain"]]  the single entry containing that phrase
+                         (must match exactly one; otherwise you get a candidate list)
 
 Plain prose with no references also works — a normal lossy summary, like
 built-in compaction. Content pulled by a reference is copied byte-for-byte:
-do not paraphrase or re-output it. To write a literal "[[", escape it as "\\[[".
+do not paraphrase or re-output it. "[[" followed by anything else stays
+literal text; to write a literal "[[#", escape it as "\\[[#".
 
 References resolve against the pre-trim context; a reference to an entry
 inside the trimmed region survives only because it is copied first. If any
@@ -200,7 +201,7 @@ async function executeTrim(
     const startIndex = startItem.rawIndex ?? startPos - 1
     const endRawId = raw[raw.length - 1].info.id
 
-    const expansion = expandTemplate(args.summary, visible)
+    const expansion = expandTemplate(args.summary, visible, toolCtx.messageID)
     if (expansion.errors.length > 0) {
         throw new Error(
             `octrimmer: refusing to trim — ${expansion.errors.length} reference error(s):\n${expansion.errors

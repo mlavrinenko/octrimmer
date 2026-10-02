@@ -58,14 +58,14 @@ describe("expandTemplate", () => {
         )
     })
 
-    it("pulls by content pattern when it matches exactly one message", () => {
-        const result = expandTemplate("[[Here is your poem]]", items)
+    it("pulls by quoted phrase when it matches exactly one message", () => {
+        const result = expandTemplate('[["Here is your poem"]]', items)
         expect(result.errors).toEqual([])
         expect(result.text).toContain("whispering your name")
     })
 
     it("reports ambiguous patterns with candidate positions", () => {
-        const result = expandTemplate("[[poem]]", items)
+        const result = expandTemplate('[["poem"]]', items)
         expect(result.errors.length).toBe(1)
         expect(result.errors[0].reason).toContain("matches 2 entries")
         expect(result.errors[0].reason).toContain("#1")
@@ -73,7 +73,7 @@ describe("expandTemplate", () => {
     })
 
     it("reports patterns that match nothing", () => {
-        const result = expandTemplate("[[nonexistent unicorn]]", items)
+        const result = expandTemplate('[["nonexistent unicorn"]]', items)
         expect(result.errors.length).toBe(1)
         expect(result.errors[0].reason).toContain("no entry contains")
     })
@@ -84,10 +84,10 @@ describe("expandTemplate", () => {
         expect(result.errors[0].reason).toContain("#99")
     })
 
-    it("rejects legacy message IDs loudly", () => {
-        const result = expandTemplate("[[m0002]]", items)
+    it("rejects a malformed position instead of leaving it literal", () => {
+        const result = expandTemplate("[[#two]]", items)
         expect(result.errors.length).toBe(1)
-        expect(result.errors[0].reason).toContain("does not inject message IDs")
+        expect(result.errors[0].reason).toContain("#two")
     })
 
     it("treats empty brackets as literal text", () => {
@@ -97,12 +97,23 @@ describe("expandTemplate", () => {
         expect(result.text).toContain("[[ ]]")
     })
 
-    it("treats any non-empty bracket group as a reference attempt", () => {
-        // `[[wiki note]]` looks like a reference, so it is one: pattern not
-        // found -> hard error. Literal brackets must be escaped (`\[[`).
-        const result = expandTemplate("See [[wiki note]]", items)
-        expect(result.errors.length).toBe(1)
-        expect(result.errors[0].reason).toContain("no entry contains")
+    it("leaves brackets that do not start a reference as literal text", () => {
+        // Summaries of code quote TOML tables, bash tests and wiki links; a
+        // reference starts only with #, a quote or a role key.
+        const template =
+            "Added a [[tasks.status]] table, guarded by [[ -f x ]], see [[wiki note]] and [[m0002]]."
+        const result = expandTemplate(template, items)
+        expect(result.errors).toEqual([])
+        expect(result.refs).toEqual([])
+        expect(result.text).toBe(template)
+    })
+
+    it("resolves role keys past the message making the trim call", () => {
+        // The caller is the newest assistant message: the one saying "trimming
+        // from #N". `last-assistant` means the reply before it.
+        expect(expandTemplate("[[last-assistant:text]]", items, "m4").text).toContain(
+            "Here is your poem",
+        )
     })
 
     it("honors escapes", () => {
@@ -134,7 +145,7 @@ describe("expandTemplate", () => {
     })
 
     it("is deterministic", () => {
-        const template = "[[#2:text]] and [[first-user:text]] and [[poem about rain:last-text]]"
+        const template = '[[#2:text]] and [[first-user:text]] and [["poem about rain":last-text]]'
         const a = expandTemplate(template, items)
         const b = expandTemplate(template, items)
         expect(a.text).toBe(b.text)

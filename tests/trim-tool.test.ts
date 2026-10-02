@@ -54,6 +54,23 @@ const poemConversation: WithParts[] = [
 const poem = () => poemConversation
 
 describe("trim-context tool", () => {
+    it("resolves last-assistant past the message making the call", async () => {
+        const conversation = [
+            ...poemConversation,
+            makeTextMessage("m_trim_call", "assistant", "Trimming from #3."),
+        ]
+        const { tool, state } = makeTool("s-caller", () => conversation)
+        await tool.execute(
+            {
+                start: "#3",
+                summary: "[[last-assistant:text]]",
+                actionRightAfterTrim: "go on",
+            },
+            makeToolCtx("s-caller"),
+        )
+        expect(state.records[0].expandedSummary).toBe("fixed it")
+    })
+
     it("lists refs when start is omitted, changing nothing", async () => {
         const { tool, state } = makeTool("s-list", poem)
         const ctx = makeToolCtx("s-list")

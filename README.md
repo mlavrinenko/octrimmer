@@ -133,9 +133,9 @@ Session has 8 messages. Last 3:
 | `[[#12:text]]`                          | only the text parts of #12                                                                                       |
 | `[[#12:last-text]]`                     | the final text part of #12                                                                                       |
 | `[[#8..#14]]`                           | every message from #8 to #14, verbatim                                                                           |
-| `[[last-assistant]]` / `[[first-user]]` | role keys over the whole conversation                                                                            |
-| `[[poem about rain]]`                   | the single message whose text contains that phrase (must match exactly one — otherwise you get a candidate list) |
-| `\[[`                                   | a literal `[[`                                                                                                   |
+| `[[last-assistant]]` / `[[first-user]]` | role keys; `last-*` skip the trim call itself                                                                    |
+| `[["poem about rain"]]`                 | the single message whose text contains that phrase (must match exactly one — otherwise you get a candidate list) |
+| `\[[#`                                  | a literal `[[#`                                                                                                  |
 
 Plain prose with no references is a normal lossy summary (like built-in compaction).
 Positions are **stable context positions** — the conversation as the model sees it, including earlier trim summaries — learned from

@@ -2,7 +2,7 @@
 
 #show: task.with(
   title: "References only where the grammar matches",
-  status: proposed(2026, 10, 2),
+  status: done(2026, 10, 2),
 )
 
 == Summary

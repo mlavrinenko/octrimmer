@@ -26,6 +26,22 @@ type Token = { type: "literal"; text: string } | { type: "ref"; inner: string }
 const ROLE_KEYS: RoleKey[] = ["first-user", "last-user", "first-assistant", "last-assistant"]
 
 /**
+ * Does the text at `at` (just past a "[[") start a reference? Only a "#", a
+ * quote or a role key does. Summaries of code quote TOML tables, bash tests
+ * and wiki links; a free-text fallback turned each into a content search that
+ * either refused the trim or silently inlined a whole message.
+ */
+function startsRef(template: string, at: number): boolean {
+    const head = template[at]
+    if (head === "#" || head === '"') {
+        return true
+    }
+    return ROLE_KEYS.some(
+        (key) => template.startsWith(key, at) && /^[\]:\s]/.test(template[at + key.length] ?? ""),
+    )
+}
+
+/**
  * Tokenize a template into literals and [[...]] reference groups.
  * `\[[` renders a literal "[[", `\\` renders a literal backslash.
  */
@@ -53,7 +69,7 @@ function tokenize(template: string): Token[] {
         }
         if (ch === "[" && template[i + 1] === "[") {
             const close = template.indexOf("]]", i + 2)
-            if (close === -1) {
+            if (close === -1 || !startsRef(template, i + 2)) {
                 literal += "[["
                 i += 2
                 continue
@@ -75,12 +91,9 @@ function tokenize(template: string): Token[] {
     return tokens
 }
 
-function parseRef(inner: string): { parsed: ParsedRef | null; error?: string } {
+/** A parsed reference, or the reason it is malformed. */
+function parseRef(inner: string): ParsedRef | string {
     const trimmed = inner.trim()
-    if (!trimmed) {
-        return { parsed: null }
-    }
-
     let target = trimmed
     let picker: Picker = "whole"
     const pickerMatch = trimmed.match(/^(.*?)\s*:\s*(text|last-text)\s*$/)
@@ -88,49 +101,36 @@ function parseRef(inner: string): { parsed: ParsedRef | null; error?: string } {
         target = pickerMatch[1].trim()
         picker = pickerMatch[2] as "text" | "last-text"
     }
-    if (!target) {
-        return { parsed: null }
-    }
-
     const rangeMatch = target.match(/^#(\d+)\s*\.\.\s*#(\d+)$/)
     if (rangeMatch) {
         const start = Number.parseInt(rangeMatch[1], 10)
         const end = Number.parseInt(rangeMatch[2], 10)
         if (start < 1 || end < 1 || start > end) {
-            return {
-                parsed: null,
-                error: `invalid range "${target}": endpoints must be ascending positive positions`,
-            }
+            return `invalid range "${target}": endpoints must be ascending positive positions`
         }
-        return { parsed: { ref: inner, kind: "range", position: start, rangeEnd: end, picker } }
+        return { ref: inner, kind: "range", position: start, rangeEnd: end, picker }
     }
 
     const positionMatch = target.match(/^#(\d+)$/)
     if (positionMatch) {
         const position = Number.parseInt(positionMatch[1], 10)
         if (position < 1) {
-            return { parsed: null, error: `invalid position "${target}"` }
+            return `invalid position "${target}"`
         }
-        return { parsed: { ref: inner, kind: "position", position, picker } }
+        return { ref: inner, kind: "position", position, picker }
     }
 
     const role = ROLE_KEYS.find((key) => key === target)
     if (role) {
-        return { parsed: { ref: inner, kind: "role", role, picker } }
+        return { ref: inner, kind: "role", role, picker }
     }
 
-    if (/^m\d+$/.test(target) || /^b\d+$/.test(target)) {
-        return {
-            parsed: null,
-            error: `"${target}" is not addressable: octrimmer does not inject message IDs. Use "#N" positions from the ref list or a content phrase.`,
-        }
+    const phraseMatch = target.match(/^"([^"]+)"$/)
+    if (phraseMatch) {
+        return { ref: inner, kind: "pattern", pattern: phraseMatch[1], picker }
     }
 
-    if (/^#|^first-|^last-/.test(target)) {
-        return { parsed: null, error: `unsupported reference "${target}"` }
-    }
-
-    return { parsed: { ref: inner, kind: "pattern", pattern: target, picker } }
+    return `unsupported reference "${target}"`
 }
 
 function renderItem(item: VisibleItem, picker: Picker): string {
@@ -171,25 +171,13 @@ function resolveRole(
     role: RoleKey,
     picker: Picker,
     items: VisibleItem[],
+    callerRawId: string | undefined,
 ): { text: string; rawIds: string[]; error?: string } {
     const wantRole = role.endsWith("user") ? "user" : "assistant"
-    const wantLast = role.startsWith("last")
-    let found: VisibleItem | undefined
-    if (wantLast) {
-        for (let i = items.length - 1; i >= 0; i--) {
-            if (items[i]?.kind === "message" && items[i].role === wantRole) {
-                found = items[i]
-                break
-            }
-        }
-    } else {
-        for (const item of items) {
-            if (item.kind === "message" && item.role === wantRole) {
-                found = item
-                break
-            }
-        }
-    }
+    const candidates = items.filter(
+        (item) => item.kind === "message" && item.role === wantRole && item.rawId !== callerRawId,
+    )
+    const found = role.startsWith("last") ? candidates.at(-1) : candidates[0]
     if (!found) {
         return { text: "", rawIds: [], error: `no ${wantRole} message found` }
     }
@@ -227,6 +215,7 @@ function resolvePattern(
 function resolveParsed(
     parsed: ParsedRef,
     items: VisibleItem[],
+    callerRawId: string | undefined,
 ): { text: string; rawIds: string[]; error?: string } {
     switch (parsed.kind) {
         case "position":
@@ -249,7 +238,7 @@ function resolveParsed(
             return { text: chunks.join("\n\n"), rawIds }
         }
         case "role":
-            return resolveRole(parsed.role ?? "last-assistant", parsed.picker, items)
+            return resolveRole(parsed.role ?? "last-assistant", parsed.picker, items, callerRawId)
         case "pattern":
             return resolvePattern(parsed.pattern ?? "", parsed.picker, items)
     }
@@ -260,8 +249,15 @@ function resolveParsed(
  * model sees it, including earlier trim summaries). Pure and deterministic:
  * a fixed template and context always produce the same result. Pulled content
  * is never rescanned (no nesting, no cycles). Errors abort the whole expansion.
+ *
+ * `callerRawId` is the message making the trim call. Role keys look past it:
+ * `last-assistant` would otherwise be the model's own "trimming from #N" line.
  */
-export function expandTemplate(template: string, items: VisibleItem[]): ExpansionResult {
+export function expandTemplate(
+    template: string,
+    items: VisibleItem[],
+    callerRawId?: string,
+): ExpansionResult {
     const tokens = tokenize(template)
     const refs: Array<{ ref: string; rawId: string }> = []
     const errors: Array<{ ref: string; reason: string }> = []
@@ -271,16 +267,12 @@ export function expandTemplate(template: string, items: VisibleItem[]): Expansio
             out.push(token.text)
             continue
         }
-        const { parsed, error } = parseRef(token.inner)
-        if (error) {
-            errors.push({ ref: token.inner, reason: error })
+        const parsed = parseRef(token.inner)
+        if (typeof parsed === "string") {
+            errors.push({ ref: token.inner, reason: parsed })
             continue
         }
-        if (!parsed) {
-            out.push(`[[${token.inner}]]`)
-            continue
-        }
-        const resolved = resolveParsed(parsed, items)
+        const resolved = resolveParsed(parsed, items, callerRawId)
         if (resolved.error) {
             errors.push({ ref: token.inner, reason: resolved.error })
             continue
