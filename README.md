@@ -63,28 +63,30 @@ skip it otherwise.
 
 ## End-to-end check
 
-`just e2e` drives a real opencode and a real model through three scenarios and
+`just e2e` drives a real opencode and a real model through four scenarios and
 prints a scorecard. Needs `opencode` on PATH, credentials for the model, and
 `jq`; `just build` runs first.
 
 ```bash
-just e2e                             # default model, opencode/mimo-v2.5-free
+just e2e                             # default model, opencode/space-bunny-free
 just e2e anthropic/claude-haiku-4-5  # any provider/model opencode can reach
 KEEP=1 just e2e                      # keep the sandbox to poke at
 ```
 
 ```
-[1/3] tool registration
+[1/4] tool registration
   PASS  trim-context is offered to the model
-[2/3] trim with a verbatim reference
+[2/4] trim with a verbatim reference
   PASS  the model called trim-context          2 calls on attempt 1 of 3
   PASS  a trim record was persisted            ses_f8d6540d8ffe9zeKoWeiSXcGj2.json
   PASS  no two records share an anchor         1 record(s), 1 distinct anchor(s)
   PASS  spans addressed by message id          msg_0729abf5f… → msg_0729added…
   PASS  pulled content survives byte-for-byte  longest verbatim span: 422 bytes
-[3/3] re-trim is refused
+[3/4] re-trim is refused
   PASS  re-trimming the same start is rejected attempt 1 of 3
   PASS  the refused trim wrote nothing         1 → 1 records
+[4/4] one trim per request
+  PASS  a trim request trims once              1 trim(s) on attempt 1 of 3
 ```
 
 It runs in a sandbox with its own `XDG_CONFIG_HOME` and `XDG_DATA_HOME`, so

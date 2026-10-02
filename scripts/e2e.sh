@@ -17,7 +17,7 @@
 
 set -euo pipefail
 
-MODEL="${MODEL:-opencode/mimo-v2.5-free}"
+MODEL="${MODEL:-opencode/space-bunny-free}"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BUNDLE="$ROOT/dist/index.js"
 STEP_TIMEOUT="${STEP_TIMEOUT:-600}"
@@ -108,6 +108,8 @@ texts() { jq -r 'select(.type=="text") | .part.text' "$1"; }
 session_of() { jq -r 'select(.sessionID) | .sessionID' "$1" | head -1; }
 tool_calls() { jq -r --arg t "$2" 'select(.type=="tool_use") | select(.part.tool==$t) | .part.tool' "$1" | wc -l; }
 tokens_of() { jq -c 'select(.type=="step_finish") | .part.tokens' "$1"; }
+# Trim-context calls that tried to trim (carried a start), as opposed to listing.
+trims_of() { jq -r 'select(.type=="tool_use") | select(.part.tool=="trim-context") | .part.state.input.start // empty' "$1" | wc -l; }
 
 say ""
 say "octrimmer E2E — $MODEL"
@@ -116,7 +118,7 @@ say ""
 
 # --- 1. the tool reaches the model -------------------------------------------
 
-say "[1/3] tool registration"
+say "[1/4] tool registration"
 REG="$SANDBOX/registration.json"
 run_opencode "$REG" "List your available tools as a comma list."
 
@@ -132,7 +134,7 @@ fi
 # --- 2. a trim that pulls content forward ------------------------------------
 
 say ""
-say "[2/3] trim with a verbatim reference"
+say "[2/4] trim with a verbatim reference"
 # Every decision the prompt can make for the model, it makes: "#1" is the user
 # turn, which is always a real message on a fresh session. What is left to the
 # model is the part under test — composing a summary that references instead of
@@ -217,7 +219,7 @@ fi
 # --- 3. the loop shield ------------------------------------------------------
 
 say ""
-say "[3/3] re-trim is refused"
+say "[3/4] re-trim is refused"
 
 # #1 is the summary the last scenario wrote, so this must bounce. Retried for
 # the same reason as scenario 2: a model that never makes the call proves
@@ -251,13 +253,43 @@ check "the refused trim wrote nothing" \
     "$([ "$AFTER" = "$RECORDS" ] && echo yes || echo no)" \
     "$RECORDS → $AFTER records"
 
+# --- 4. one trim per request --------------------------------------------------
+
+say ""
+say "[4/4] one trim per request"
+
+# The reported bug: asked to trim, the model trimmed, then trimmed again. The
+# region swallows the request and the call, so the next step sees only the
+# summary. Unlike scenario 2 nothing is dictated — no positions, no "then reply"
+# — because a scripted next step is exactly what hides the bug. Retried only
+# when the model never trims; a second trim is the failure itself.
+ONCE_TRIMS=0
+once_try=0
+while [ "$once_try" -lt "$ATTEMPTS" ]; do
+    once_try=$((once_try + 1))
+    WORKED="$SANDBOX/once-work-$once_try.json"
+    ONCE="$SANDBOX/once-$once_try.json"
+    run_opencode "$WORKED" "Write a 4-line poem about rain, then list three facts about clouds."
+    run_opencode "$ONCE" --session "$(session_of "$WORKED")" "Trim your context now, keeping the poem."
+    ONCE_TRIMS="$(trims_of "$ONCE")"
+    [ "$ONCE_TRIMS" -gt 0 ] && break
+    [ "$once_try" -lt "$ATTEMPTS" ] && say "  ....  attempt $once_try: the model did not trim — retrying"
+done
+
+if [ "$ONCE_TRIMS" -eq 0 ]; then
+    check "a trim request trims once" no "the model never trimmed in $ATTEMPTS attempts (model compliance)"
+else
+    check "a trim request trims once" "$([ "$ONCE_TRIMS" -eq 1 ] && echo yes || echo no)" \
+        "$ONCE_TRIMS trim(s) on attempt $once_try of $ATTEMPTS"
+fi
+
 # --- stats -------------------------------------------------------------------
 
 stat_line "model" "$MODEL"
 stat_line "attempts needed" "$attempt of $ATTEMPTS"
 stat_line "trim-context calls" "$CALLS ($RECORDS of them trimmed)"
 # More than one trim per run is the post-trim re-trim this scenario never asks for.
-stat_line "trims attempted" "$(jq -r 'select(.type=="tool_use") | select(.part.tool=="trim-context") | .part.state.input.start // empty' "$TRIM" | wc -l)"
+stat_line "trims attempted" "$(trims_of "$TRIM")"
 stat_line "references used" "$(jq -r '[.records[].refs[].ref] | if length == 0 then "none (fell back to prose)" else join(", ") end' "$RECORD_FILE")"
 stat_line "summary size" "${#SUMMARIES} bytes"
 

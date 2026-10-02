@@ -43,5 +43,5 @@ build:
 #   KEEP=1 just e2e                      keep the sandbox to poke at
 [doc("End-to-end check against a real opencode and a real model")]
 e2e model="" *args: build
-    MODEL="${MODEL:-{{ if model == "" { "opencode/mimo-v2.5-free" } else { model } }}}" \
+    MODEL="${MODEL:-{{ if model == "" { "opencode/space-bunny-free" } else { model } }}}" \
       bash scripts/e2e.sh {{ args }}
