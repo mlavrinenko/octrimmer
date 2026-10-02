@@ -8,25 +8,23 @@ Octrimmer aims to stay lightweight: it has no nudges and adds nothing extra to t
 
 | **Written** | **Rendered** |
 | --- | --- |
-| `[[#12]]` | whole entry #12 (a message or a summary) |
-| `[[#12:text]]` | only the text parts of message #12 |
-| `[[#12:last-text]]` | the final text part of message #12 |
+| `[[#12]]` | the whole entry #12 (a message or a summary) |
+| `[[#12:text]]` | entry #12's text, tool calls dropped |
+| `[[#12:last-text]]` | only entry #12's last text block (often the text after its tool calls) |
 | `[[#8..#14]]` | every entry from #8 to #14 |
-| `[[last-assistant]]` | the latest assistant message before this call |
-| `[[first-user]]` | the first user message; also last-user, first-assistant |
+| `[[last-assistant]]` | the last assistant entry before this trim call |
+| `[[first-user]]` | the first user entry; also last-user, first-assistant |
 | `[["updatedAt"]]` | the one entry containing that phrase |
 
 ## Behaviour
 
-- A phrase must match exactly one entry; otherwise the error lists the candidates.
-- One failing reference refuses the whole trim and reports every failure.
-- The agent picks only a starting position; the trim always ends at the last message.
-- Raw history is never modified. A trim is a record re-applied on every request, and messages after it are kept.
-- Positions are the conversation as the model sees it: earlier summaries included, and after native compaction too.
-- Records name messages by ID, so compaction and reverts cannot shift a trim onto other messages. A record whose messages are out of sight is skipped, never deleted.
-- A trim starting before an earlier one replaces it. A trim right after another, with no user message or tool work in between, is refused.
-- Subagent sessions trim like any other; state is per session.
-- `[[` followed by anything else is plain text, so a TOML table or a bash test in a summary stays as written.
+- A trim runs from the start position to the end of the conversation. The start is the only choice; positions are the conversation as the model sees it, earlier summaries included.
+- References resolve before the cut, so content inside the tail survives only if a reference pulls it. One bad reference refuses the whole trim and lists every failure; a phrase must match exactly one entry.
+- History is never modified: the trim is re-applied on every request, and the messages it hides stay in the session.
+- Entries are named by ID, so compaction and reverts cannot move a trim onto other messages. A record whose messages are out of sight is skipped, never deleted.
+- A newer trim replaces an older one. Two trims in a row, with nothing in between, are refused.
+- State is per session; subagents trim like any other session.
+- `[[` that does not open a valid reference is plain text, so a TOML table or a bash test in a summary stays as written.
 
 ## Example
 

@@ -26,12 +26,12 @@ const ROLE_KEYS: RoleKey[] = ["first-user", "last-user", "first-assistant", "las
  * description and the README both render this list, so neither can drift.
  */
 export const REFERENCE_SYNTAX: ReadonlyArray<readonly [write: string, get: string]> = [
-    ["[[#12]]", "whole entry #12 (a message or a summary)"],
-    ["[[#12:text]]", "only the text parts of message #12"],
-    ["[[#12:last-text]]", "the final text part of message #12"],
+    ["[[#12]]", "the whole entry #12 (a message or a summary)"],
+    ["[[#12:text]]", "entry #12's text, tool calls dropped"],
+    ["[[#12:last-text]]", "only entry #12's last text block (often the text after its tool calls)"],
     ["[[#8..#14]]", "every entry from #8 to #14"],
-    ["[[last-assistant]]", "the latest assistant message before this call"],
-    ["[[first-user]]", "the first user message; also last-user, first-assistant"],
+    ["[[last-assistant]]", "the last assistant entry before this trim call"],
+    ["[[first-user]]", "the first user entry; also last-user, first-assistant"],
     ['[["updatedAt"]]', "the one entry containing that phrase"],
 ]
 
