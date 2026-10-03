@@ -71,6 +71,15 @@ e2e model="" *args: build
     MODEL="${MODEL:-{{ model }}}" \
       bash scripts/e2e.sh {{ args }}
 
+# Same sandbox as `e2e`. The model is required and must report cache reads;
+# a few model calls with ~30k-token prompts.
+#
+#   just e2e-cache openrouter/anthropic/claude-haiku-4.5
+[doc("Measure the prompt cache across a trim against a real model")]
+e2e-cache model="" *args: build
+    MODEL="${MODEL:-{{ model }}}" \
+      bash scripts/e2e-cache.sh {{ args }}
+
 # README.md is rendered from docs/readme.typ. Its examples come from running
 # the plugin (docs/facts.ts), never from typing them.
 [doc("Render README.md from docs/readme.typ")]

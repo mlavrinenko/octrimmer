@@ -2,7 +2,11 @@
 
 #show: task.with(
   title: "E2E: measure prompt cache across a trim",
-  status: proposed(2026, 10, 3),
+  status: done(
+    2026,
+    10,
+    3,
+  )[Haiku 4.5: prefix read 21396/21396, next turn 99% cached, trim cost 103 tokens],
 )
 
 == Summary
