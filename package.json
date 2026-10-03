@@ -1,7 +1,7 @@
 {
     "$schema": "https://json.schemastore.org/package.json",
     "name": "octrimmer",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "type": "module",
     "description": "OpenCode plugin that lets the model trim its own context: a summary replaces finished work and keeps what matters verbatim by reference, never re-generated.",
     "author": "Maxim Lavrinenko",
