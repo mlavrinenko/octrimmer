@@ -44,6 +44,13 @@ tasks-check:
 build:
     npx tsup --silent
 
+# Refuses unless HEAD carries the tag `v<package.json version>`, so what npm
+# holds is always a commit the flake can pin too.
+[doc("Gate, build and publish the tagged version to npm")]
+publish: check build
+    tag="v$(jq -r .version package.json)"; [ "$(git tag --points-at HEAD)" = "$tag" ] || { echo "HEAD is not tagged $tag"; exit 1; }
+    npm publish
+
 # Fork branch SLUG off BASE into the ignored `.worktree/`, with its
 # `.envrc` allowed and the dev shell loaded once. Without the allow a
 # worktree's shell is refused and agents reach for `nix develop -c`.
