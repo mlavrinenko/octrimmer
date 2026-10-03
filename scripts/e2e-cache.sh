@@ -12,92 +12,31 @@
 #   5  reply THREE                      follow-up: is the trimmed view cached?
 #
 # Numbers come from the `step_finish` events of `opencode run --format json`:
-# per step, uncached input, cache reads and cache writes. Sandboxed like
-# scripts/e2e.sh: own config and data homes, credentials borrowed by symlink.
+# per step, uncached input, cache reads and cache writes. Sandboxed by
+# scripts/e2e-sandbox.sh.
 #
 #   MODEL=provider/model  which model to drive, required: free models come and
 #                         go and few report cache reads; one that reports none
 #                         stops the run after the control turn
 #   KEEP=1                keep the sandbox for inspection instead of deleting
+#   RECORD=1              on a full pass, write the numbers to
+#                         docs/measured/cache.json, which the README shows
 #   BULK_LINES=N          lines per bulk block (default 400, ~6k tokens)
 
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-BUNDLE="$ROOT/dist/index.js"
-STEP_TIMEOUT="${STEP_TIMEOUT:-600}"
 BULK_LINES="${BULK_LINES:-400}"
 # A step that should be served from cache: share of its prompt read from it.
 WARM_PCT="${WARM_PCT:-80}"
 
-passed=0
-failed=0
-
-say() { printf '%s\n' "$*"; }
-
-check() {
-    local label="$1" ok="$2" detail="${3:-}"
-    if [ "$ok" = "yes" ]; then
-        passed=$((passed + 1))
-        printf '  \033[32mPASS\033[0m  %-44s %s\n' "$label" "$detail"
-    else
-        failed=$((failed + 1))
-        printf '  \033[31mFAIL\033[0m  %-44s %s\n' "$label" "$detail"
-    fi
-}
-
-need() {
-    command -v "$1" >/dev/null 2>&1 || {
-        say "missing required tool: $1"
-        exit 127
-    }
-}
-
-need opencode
-need jq
-
 [ -n "${MODEL:-}" ] || {
-    say "pass a model that reports cache reads: just e2e-cache provider/model"
+    echo "pass a model that reports cache reads: just e2e-cache provider/model"
     exit 1
 }
 
-[ -f "$BUNDLE" ] || {
-    say "no bundle at dist/index.js — run 'just build' first"
-    exit 1
-}
+# shellcheck source=scripts/e2e-sandbox.sh
+source "$(dirname "${BASH_SOURCE[0]}")/e2e-sandbox.sh"
 
-if command -v timeout >/dev/null 2>&1; then
-    TIMEOUT=(timeout "$STEP_TIMEOUT")
-elif command -v gtimeout >/dev/null 2>&1; then
-    TIMEOUT=(gtimeout "$STEP_TIMEOUT")
-else
-    TIMEOUT=()
-fi
-
-SANDBOX="$(mktemp -d "${TMPDIR:-/tmp}/octrimmer-e2e-cache-XXXXXX")"
-# shellcheck disable=SC2329  # invoked by the trap below, not by name
-cleanup() {
-    if [ "${KEEP:-0}" = "1" ]; then
-        say ""
-        say "sandbox kept: $SANDBOX"
-    else
-        rm -rf "$SANDBOX"
-    fi
-}
-trap cleanup EXIT
-
-CONFIG="$SANDBOX/config"
-DATA="$SANDBOX/data"
-WORK="$SANDBOX/work"
-mkdir -p "$CONFIG/opencode/plugins" "$DATA/opencode" "$WORK"
-cp "$BUNDLE" "$CONFIG/opencode/plugins/octrimmer.js"
-
-REAL_DATA="${XDG_DATA_HOME:-$HOME/.local/share}/opencode"
-for credential in auth.json account.json; do
-    [ -e "$REAL_DATA/$credential" ] && ln -s "$REAL_DATA/$credential" "$DATA/opencode/$credential"
-done
-
-RECORD_DIR="$DATA/opencode/storage/plugin/octrimmer"
 SESSION=""
 
 # Runs one turn of the session into $SANDBOX/turn-N.json; the first one opens it.
@@ -105,18 +44,8 @@ turn() {
     local n="$1" prompt="$2" out="$SANDBOX/turn-$1.json"
     local -a session=()
     [ -n "$SESSION" ] && session=(--session "$SESSION")
-    (
-        cd "$WORK"
-        XDG_CONFIG_HOME="$CONFIG" XDG_DATA_HOME="$DATA" \
-            "${TIMEOUT[@]}" opencode run "${session[@]}" "$prompt" -m "$MODEL" --format json
-    ) >"$out" 2>"$out.err" || true
-    local error
-    error="$(jq -r 'select(.type=="error") | .error.data.message // .error.name' "$out" | head -1)"
-    if [ -n "$error" ]; then
-        say "provider error on $MODEL: $error"
-        exit 1
-    fi
-    [ -n "$SESSION" ] || SESSION="$(jq -r 'select(.sessionID) | .sessionID' "$out" | head -1)"
+    run_opencode "$out" "${session[@]}" "$prompt"
+    [ -n "$SESSION" ] || SESSION="$(session_of "$out")"
     [ -n "$SESSION" ] || {
         say "turn $n opened no session; see $out.err"
         exit 1
@@ -142,11 +71,6 @@ yes_if() { if eval "$1"; then echo yes; else echo no; fi; }
 
 # Deterministic filler: distinct lines, so no provider can dedupe it.
 bulk() { awk -v tag="$1" -v n="$BULK_LINES" 'BEGIN { for (i = 1; i <= n; i++) printf "%s %04d: the ledger row %d carries checksum %x and no meaning.\n", tag, i, i * 7919, i * 2654435761 % 4294967296 }'; }
-
-say ""
-say "octrimmer E2E cache — $MODEL"
-say "sandbox: $SANDBOX"
-say ""
 
 turn 1 "$(bulk alpha)
 Reply with exactly OK and nothing else. Use no tools."
@@ -217,10 +141,15 @@ printf '  %-26s %s\n' "context before, after" "$BEFORE → $AFTER tokens"
 printf '  %-26s %s\n' "trim cost (cache write)" "$AFTER_WRITE tokens, once"
 printf '  %-26s %s\n' "saved per later step" "$((BEFORE - AFTER)) tokens"
 
-say ""
-if [ "$failed" -eq 0 ]; then
-    printf '\033[32m%d passed\033[0m, %d failed\n' "$passed" "$failed"
-else
-    printf '%d passed, \033[31m%d failed\033[0m\n' "$passed" "$failed"
+if [ "${RECORD:-0}" = 1 ] && [ "$failed" -eq 0 ]; then
+    mkdir -p "$ROOT/docs/measured"
+    jq -n --indent 4 --arg model "$MODEL" --argjson before "$BEFORE" --argjson after "$AFTER" \
+        --argjson kept "$KEPT" --argjson read "$AFTER_READ" --argjson write "$AFTER_WRITE" \
+        --argjson next "$(pct "$NEXT_READ" "$NEXT")" \
+        '{model: $model, before: $before, after: $after, kept: $kept, keptRead: $read, trimWrite: $write, nextCachedPct: $next}' \
+        >"$ROOT/docs/measured/cache.json"
+    say ""
+    say "recorded: docs/measured/cache.json"
 fi
-exit $((failed > 0))
+
+finish

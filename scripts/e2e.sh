@@ -2,11 +2,7 @@
 #
 # End-to-end check against a real opencode and a real model.
 #
-# Runs in a sandbox: its own XDG_CONFIG_HOME (so the only plugin loaded is the
-# bundle under test — none of the operator's global plugins, agents or rules)
-# and its own XDG_DATA_HOME (so the trim records read back are this run's and
-# nothing else). Credentials are the one thing borrowed from the real profile,
-# by symlink rather than copy.
+# Sandboxed by scripts/e2e-sandbox.sh.
 #
 #   MODEL=provider/model  which model to drive (default: the first free one
 #                         opencode offers — free models come and go, so none
@@ -19,111 +15,24 @@
 
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-BUNDLE="$ROOT/dist/index.js"
-STEP_TIMEOUT="${STEP_TIMEOUT:-600}"
-
-passed=0
-failed=0
 declare -a STATS=()
 
-say() { printf '%s\n' "$*"; }
 stat_line() { STATS+=("$(printf '  %-22s %s' "$1" "$2")"); }
-
-check() {
-    local label="$1" ok="$2" detail="${3:-}"
-    if [ "$ok" = "yes" ]; then
-        passed=$((passed + 1))
-        printf '  \033[32mPASS\033[0m  %-38s %s\n' "$label" "$detail"
-    else
-        failed=$((failed + 1))
-        printf '  \033[31mFAIL\033[0m  %-38s %s\n' "$label" "$detail"
-    fi
-}
-
-need() {
-    command -v "$1" >/dev/null 2>&1 || {
-        say "missing required tool: $1"
-        exit 127
-    }
-}
-
-need opencode
-need jq
 
 if [ -z "${MODEL:-}" ]; then
     MODEL="$(opencode models 2>/dev/null | grep -m1 '^opencode/.*-free$' || true)"
     [ -n "$MODEL" ] || {
-        say "no free opencode model on offer — pass MODEL=provider/model"
+        echo "no free opencode model on offer — pass MODEL=provider/model"
         exit 1
     }
 fi
 
-[ -f "$BUNDLE" ] || {
-    say "no bundle at dist/index.js — run 'just build' first"
-    exit 1
-}
-
-# `timeout` is coreutils; macOS ships it as gtimeout, or not at all. A missing
-# one is not worth failing over — the run just has no ceiling.
-if command -v timeout >/dev/null 2>&1; then
-    TIMEOUT=(timeout "$STEP_TIMEOUT")
-elif command -v gtimeout >/dev/null 2>&1; then
-    TIMEOUT=(gtimeout "$STEP_TIMEOUT")
-else
-    TIMEOUT=()
-fi
-
-SANDBOX="$(mktemp -d "${TMPDIR:-/tmp}/octrimmer-e2e-XXXXXX")"
-# shellcheck disable=SC2329  # invoked by the trap below, not by name
-cleanup() {
-    if [ "${KEEP:-0}" = "1" ]; then
-        say ""
-        say "sandbox kept: $SANDBOX"
-    else
-        rm -rf "$SANDBOX"
-    fi
-}
-trap cleanup EXIT
-
-CONFIG="$SANDBOX/config"
-DATA="$SANDBOX/data"
-WORK="$SANDBOX/work"
-mkdir -p "$CONFIG/opencode/plugins" "$DATA/opencode" "$WORK"
-cp "$BUNDLE" "$CONFIG/opencode/plugins/octrimmer.js"
-
-# Auth lives in the data home, which the sandbox replaces. Link the real files
-# in so the run can authenticate without copying credentials anywhere.
-REAL_DATA="${XDG_DATA_HOME:-$HOME/.local/share}/opencode"
-for credential in auth.json account.json; do
-    [ -e "$REAL_DATA/$credential" ] && ln -s "$REAL_DATA/$credential" "$DATA/opencode/$credential"
-done
-
-RECORD_DIR="$DATA/opencode/storage/plugin/octrimmer"
-
-run_opencode() {
-    local out="$1"
-    shift
-    (
-        cd "$WORK"
-        XDG_CONFIG_HOME="$CONFIG" XDG_DATA_HOME="$DATA" \
-            "${TIMEOUT[@]}" opencode run "$@" -m "$MODEL" --format json
-    ) >"$out" 2>"$out.err" || true
-    # A provider refusal (region lock, quota, auth) would otherwise read as
-    # the plugin failing the next check. Name it and stop.
-    local error
-    error="$(jq -r 'select(.type=="error") | .error.data.message // .error.name' "$out" | head -1)"
-    if [ -n "$error" ]; then
-        say "provider error on $MODEL: $error"
-        say "pick another model: MODEL=provider/model just e2e"
-        exit 1
-    fi
-}
+# shellcheck source=scripts/e2e-sandbox.sh
+source "$(dirname "${BASH_SOURCE[0]}")/e2e-sandbox.sh"
 
 # --- event stream readers -----------------------------------------------------
 
 texts() { jq -r 'select(.type=="text") | .part.text' "$1"; }
-session_of() { jq -r 'select(.sessionID) | .sessionID' "$1" | head -1; }
 tool_calls() { jq -r --arg t "$2" 'select(.type=="tool_use") | select(.part.tool==$t) | .part.tool' "$1" | wc -l; }
 tokens_of() { jq -c 'select(.type=="step_finish") | .part.tokens' "$1"; }
 # Trim-context calls that tried to trim (carried a start), as opposed to listing.
@@ -133,11 +42,6 @@ trims_done() { jq -r 'select(.type=="tool_use") | select(.part.tool=="trim-conte
 # References the completed trims wrote, one per line. Records keep only the
 # expanded summary, so the written form is read back from the call itself.
 refs_of() { jq -r 'select(.type=="tool_use") | select(.part.tool=="trim-context") | select(.part.state.status=="completed") | .part.state.input.summary // empty | scan("\\[\\[[^]]*\\]\\]")' "$1"; }
-
-say ""
-say "octrimmer E2E — $MODEL"
-say "sandbox: $SANDBOX"
-say ""
 
 # --- 1. the tool reaches the model -------------------------------------------
 
@@ -330,10 +234,4 @@ say ""
 say "stats"
 printf '%s\n' "${STATS[@]}"
 
-say ""
-if [ "$failed" -eq 0 ]; then
-    printf '\033[32m%d passed\033[0m, %d failed\n' "$passed" "$failed"
-else
-    printf '%d passed, \033[31m%d failed\033[0m\n' "$passed" "$failed"
-fi
-exit $((failed > 0))
+finish
