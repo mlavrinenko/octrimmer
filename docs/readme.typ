@@ -3,12 +3,14 @@
 // say for itself — the reference table, the list reply, the trim, what the
 // model sees next — is read from docs/generated/facts.json, which
 // docs/facts.ts writes by running the plugin. Prose that only restates
-// behaviour sits in outdatty.yaml's `behaviour` group instead.
+// behaviour sits in outdatty.yaml's `behaviour` group instead. Cache numbers
+// need a real model, so `RECORD=1 just e2e-cache` writes docs/measured/.
 //
 // typlite: `=` renders as `##`, so the title is a literal <h1>; a `|` inside a
 // table cell splits the row; never end a wrapped line on a hyphen.
 
 #let facts = json("generated/facts.json")
+#let cache = json("measured/cache.json")
 #let sample(text) = raw(block: true, lang: "text", text)
 
 #html.elem("h1")[octrimmer]
@@ -83,13 +85,16 @@ The next request carries:
 #sample(facts.seen.join("\n\n"))
 
 Everything before the start is byte-identical, so the provider's prompt cache
-stays warm. The trim swallows the request that asked for it and the call
+stays warm. Measured on #cache.model: the context fell from #cache.before to
+#cache.after tokens, all #cache.keptRead tokens before the start came from
+cache, the trim cost #cache.trimWrite tokens of cache writes, and the next turn
+was #cache.nextCachedPct% cached. The trim swallows the request that asked for it and the call
 itself; `actionRightAfterTrim` tells the model what comes next.
 
 = Development
 
 `just check` is the gate, `just e2e` runs scripted scenarios against a real
-opencode, `just docs` re-renders `README.md`. Tasks live in
+opencode, `just e2e-cache` measures the prompt cache across a trim, `just docs` re-renders `README.md`. Tasks live in
 #link("https://github.com/mlavrinenko/mindtape")[mindtape].
 
 = Similar projects

@@ -1,0 +1,9 @@
+{
+    "model": "openrouter/anthropic/claude-haiku-4.5",
+    "before": 32976,
+    "after": 21502,
+    "kept": 21396,
+    "keptRead": 21396,
+    "trimWrite": 103,
+    "nextCachedPct": 99
+}

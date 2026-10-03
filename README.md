@@ -84,11 +84,11 @@ Fixed the pieces API: an unknown id now returns 404; contract test green.
 What you planned to do right after the trim: Tell the user the 404 bug is fixed.
 ```
 
-Everything before the start is byte-identical, so the provider’s prompt cache stays warm. The trim swallows the request that asked for it and the call itself; `actionRightAfterTrim` tells the model what comes next.
+Everything before the start is byte-identical, so the provider’s prompt cache stays warm. Measured on openrouter/anthropic/claude-haiku-4.5: the context fell from 32976 to 21502 tokens, all 21396 tokens before the start came from cache, the trim cost 103 tokens of cache writes, and the next turn was 99% cached. The trim swallows the request that asked for it and the call itself; `actionRightAfterTrim` tells the model what comes next.
 
 ## Development
 
-`just check` is the gate, `just e2e` runs scripted scenarios against a real opencode, `just docs` re-renders `README.md`. Tasks live in [mindtape](https://github.com/mlavrinenko/mindtape).
+`just check` is the gate, `just e2e` runs scripted scenarios against a real opencode, `just e2e-cache` measures the prompt cache across a trim, `just docs` re-renders `README.md`. Tasks live in [mindtape](https://github.com/mlavrinenko/mindtape).
 
 ## Similar projects
 
