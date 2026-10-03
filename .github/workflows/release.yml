@@ -33,7 +33,9 @@ jobs:
                   persist-credentials: false
             - uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24 # v31.11.1
               with:
-                  extra_nix_config: accept-flake-config = true
+                  extra_nix_config: |
+                      extra-substituters = https://qahq.cachix.org
+                      extra-trusted-public-keys = qahq.cachix.org-1:m43yxxOk1vih9jTZmKXZXgHSSKsW/rNVZUqgXqrELM8=
             - run: nix develop -c npm ci --ignore-scripts --no-audit --no-fund --loglevel=error
             - run: nix develop -c just release
             - run: bash scripts/notes.sh "$GITHUB_REF_NAME" | gh release create "$GITHUB_REF_NAME" --verify-tag --title "$GITHUB_REF_NAME" --notes-file -

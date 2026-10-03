@@ -7,15 +7,12 @@
     qahq.url = "github:mlavrinenko/qahq";
   };
 
-  # qahq's binary cache ships prebuilt jscpd (and other home tools), so
-  # consumers do not compile them from source. Do NOT make qahq follow this
-  # repo's nixpkgs: the cache answers against qahq's own pin.
-  nixConfig = {
-    extra-substituters = [ "https://qahq.cachix.org" ];
-    extra-trusted-public-keys = [
-      "qahq.cachix.org-1:m43yxxOk1vih9jTZmKXZXgHSSKsW/rNVZUqgXqrELM8="
-    ];
-  };
+  # The dev shell's jscpd and outdatty come prebuilt from qahq's Cachix
+  # (substituter https://qahq.cachix.org, key
+  # qahq.cachix.org-1:m43yxxOk1vih9jTZmKXZXgHSSKsW/rNVZUqgXqrELM8=) once your
+  # nix.conf trusts it; CI sets it in .github/workflows/ci.yml. No nixConfig
+  # here: nix announces one on every command in the tree. Do NOT make qahq
+  # follow this repo's nixpkgs: the cache answers against qahq's own pin.
 
   outputs =
     {
