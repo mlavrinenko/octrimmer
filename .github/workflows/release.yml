@@ -21,15 +21,20 @@ jobs:
         permissions:
             contents: write
             id-token: write
+        # This job can publish, so nothing in it runs code the gate did not
+        # have to: actions pinned by commit, no dependency install scripts
+        # (the bundle builds identically without them), and no git token left
+        # in .git/config for the steps after checkout.
         steps:
             # Full history: the notes start at the previous tag.
-            - uses: actions/checkout@v7
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
                   fetch-depth: 0
-            - uses: cachix/install-nix-action@v31
+                  persist-credentials: false
+            - uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24 # v31.11.1
               with:
                   extra_nix_config: accept-flake-config = true
-            - run: nix develop -c npm ci --no-audit --no-fund --loglevel=error
+            - run: nix develop -c npm ci --ignore-scripts --no-audit --no-fund --loglevel=error
             - run: nix develop -c just release
             - run: bash scripts/notes.sh "$GITHUB_REF_NAME" | gh release create "$GITHUB_REF_NAME" --verify-tag --title "$GITHUB_REF_NAME" --notes-file -
               env:

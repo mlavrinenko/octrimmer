@@ -1,0 +1,8 @@
+# Keeps the workflows' commit-pinned actions current: a monthly PR per bump,
+# gated by ci.yml like any other change.
+version: 2
+updates:
+    - package-ecosystem: github-actions
+      directory: /
+      schedule:
+          interval: monthly
