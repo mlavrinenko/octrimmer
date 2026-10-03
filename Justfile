@@ -56,10 +56,14 @@ tasks-check:
 build:
     npx tsup --silent
 
-# Refuses unless HEAD carries the tag `v<package.json version>`, so what npm
-# holds is always a commit the flake can pin too.
 [doc("Gate, build and publish the tagged version to npm")]
-publish: check build
+publish: check release
+
+# Refuses unless HEAD carries the tag `v<package.json version>`, so what npm
+# holds is always a commit the flake can pin too. CI runs it after `ci` on a
+# pushed tag (.github/workflows/release.yml), publishing with no token.
+[private]
+release: build
     tag="v$(jq -r .version package.json)"; [ "$(git tag --points-at HEAD)" = "$tag" ] || { echo "HEAD is not tagged $tag"; exit 1; }
     npm publish
 

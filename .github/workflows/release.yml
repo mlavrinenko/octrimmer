@@ -1,0 +1,29 @@
+name: release
+
+# Publishes a pushed `v*` tag to npm through trusted publishing: npmjs.com
+# trusts this file by name, so no token is stored anywhere, and provenance
+# links the package to the commit.
+on:
+    push:
+        tags: ["v*"]
+
+permissions:
+    contents: read
+
+jobs:
+    gate:
+        uses: ./.github/workflows/ci.yml
+
+    publish:
+        needs: gate
+        runs-on: ubuntu-latest
+        permissions:
+            contents: read
+            id-token: write
+        steps:
+            - uses: actions/checkout@v7
+            - uses: cachix/install-nix-action@v31
+              with:
+                  extra_nix_config: accept-flake-config = true
+            - run: nix develop -c npm ci --no-audit --no-fund --loglevel=error
+            - run: nix develop -c just release

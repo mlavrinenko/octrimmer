@@ -101,7 +101,8 @@
 
         devShells.default = pkgs.mkShell {
           nativeBuildInputs = [
-            pkgs.nodejs_22
+            # npm >= 11.5.1, for trusted publishing from .github/workflows/release.yml.
+            pkgs.nodejs_24
             pkgs.just
             # `just e2e` reads opencode's JSON event stream and the trim
             # records back with jq; shellcheck keeps the script it lives in
