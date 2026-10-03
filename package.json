@@ -4,6 +4,16 @@
     "version": "0.1.0",
     "type": "module",
     "description": "Manual context trimmer for OpenCode. Cut from a start point; keep prior content verbatim by reference — never re-generate it.",
+    "author": "Maxim Lavrinenko",
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/mlavrinenko/octrimmer.git"
+    },
+    "homepage": "https://github.com/mlavrinenko/octrimmer#readme",
+    "bugs": {
+        "url": "https://github.com/mlavrinenko/octrimmer/issues"
+    },
     "main": "./dist/index.js",
     "exports": {
         ".": {
@@ -19,9 +29,6 @@
         "compaction",
         "tokens"
     ],
-    "peerDependencies": {
-        "@opencode-ai/plugin": ">=1.4.3"
-    },
     "devDependencies": {
         "@opencode-ai/plugin": "^1.4.3",
         "@types/node": "^25.5.0",
@@ -35,8 +42,8 @@
     },
     "files": [
         "dist/",
+        "skills/",
         "README.md",
         "LICENSE"
-    ],
-    "license": "MIT"
+    ]
 }
