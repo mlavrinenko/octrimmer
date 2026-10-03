@@ -10,7 +10,7 @@ check: ci tasks-check
 
 # The gate minus `tasks-check`: CI runs this, as `mt` is not packaged for it.
 [parallel]
-ci: fmt-check lint knip shellcheck actionlint typecheck test jscpd docs-check outdatty-check
+ci: fmt-check lint knip shellcheck actionlint gitleaks typecheck test jscpd docs-check outdatty-check
 
 fmt-check:
     npx prettier --check --log-level warn .
@@ -29,6 +29,11 @@ shellcheck:
 
 actionlint:
     actionlint
+
+# The whole history, not the working tree: a secret removed in a later commit
+# is still published by the earlier one. Findings print redacted.
+gitleaks:
+    out=$(gitleaks git --no-banner --no-color --redact -v . 2>&1) || { printf '%s\n' "$out"; exit 1; }
 
 typecheck:
     out=$(npx tsc 2>&1) || { printf '%s\n' "$out"; exit 1; }

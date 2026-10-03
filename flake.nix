@@ -110,6 +110,8 @@
             pkgs.shellcheck
             # Lints .github/workflows, shellchecking their run: steps too.
             pkgs.actionlint
+            # Scans every commit for secrets before the repo or npm sees them.
+            pkgs.gitleaks
             # The Rust jscpd port, prebuilt on qahq's Cachix.
             qahq.packages.${system}.jscpd
             # README.md is rendered from docs/readme.typ by typlite, which

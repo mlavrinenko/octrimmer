@@ -9,7 +9,10 @@ jobs:
     gate:
         runs-on: ubuntu-latest
         steps:
+            # Full history, for gitleaks.
             - uses: actions/checkout@v7
+              with:
+                  fetch-depth: 0
             # accept-flake-config takes qahq's Cachix from flake.nix, so jscpd
             # and outdatty arrive prebuilt.
             - uses: cachix/install-nix-action@v31
