@@ -108,6 +108,8 @@
             # under the same gate as the TypeScript.
             pkgs.jq
             pkgs.shellcheck
+            # Lints .github/workflows, shellchecking their run: steps too.
+            pkgs.actionlint
             # The Rust jscpd port, prebuilt on qahq's Cachix.
             qahq.packages.${system}.jscpd
             # README.md is rendered from docs/readme.typ by typlite, which

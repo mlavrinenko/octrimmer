@@ -1,0 +1,20 @@
+name: ci
+
+on:
+    push:
+        branches: [main]
+    pull_request:
+
+jobs:
+    gate:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v7
+            # accept-flake-config takes qahq's Cachix from flake.nix, so jscpd
+            # and outdatty arrive prebuilt.
+            - uses: cachix/install-nix-action@v31
+              with:
+                  extra_nix_config: accept-flake-config = true
+            - run: nix develop -c npm ci --no-audit --no-fund --loglevel=error
+            - run: nix develop -c just ci
+            - run: nix flake check

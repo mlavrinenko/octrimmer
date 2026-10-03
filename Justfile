@@ -6,7 +6,11 @@ default: check
 # silent when green and printing its whole report when red. `e2e` is
 # deliberately out: it spends real model calls and needs credentials.
 [parallel]
-check: fmt-check lint knip shellcheck typecheck test jscpd tasks-check docs-check outdatty-check
+check: ci tasks-check
+
+# The gate minus `tasks-check`: CI runs this, as `mt` is not packaged for it.
+[parallel]
+ci: fmt-check lint knip shellcheck actionlint typecheck test jscpd docs-check outdatty-check
 
 fmt-check:
     npx prettier --check --log-level warn .
@@ -22,6 +26,9 @@ knip:
 
 shellcheck:
     shellcheck scripts/*.sh
+
+actionlint:
+    actionlint
 
 typecheck:
     out=$(npx tsc 2>&1) || { printf '%s\n' "$out"; exit 1; }
