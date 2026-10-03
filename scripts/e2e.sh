@@ -109,6 +109,15 @@ run_opencode() {
         XDG_CONFIG_HOME="$CONFIG" XDG_DATA_HOME="$DATA" \
             "${TIMEOUT[@]}" opencode run "$@" -m "$MODEL" --format json
     ) >"$out" 2>"$out.err" || true
+    # A provider refusal (region lock, quota, auth) would otherwise read as
+    # the plugin failing the next check. Name it and stop.
+    local error
+    error="$(jq -r 'select(.type=="error") | .error.data.message // .error.name' "$out" | head -1)"
+    if [ -n "$error" ]; then
+        say "provider error on $MODEL: $error"
+        say "pick another model: MODEL=provider/model just e2e"
+        exit 1
+    fi
 }
 
 # --- event stream readers -----------------------------------------------------
@@ -121,6 +130,9 @@ tokens_of() { jq -c 'select(.type=="step_finish") | .part.tokens' "$1"; }
 trims_of() { jq -r 'select(.type=="tool_use") | select(.part.tool=="trim-context") | .part.state.input.start // empty' "$1" | wc -l; }
 # Of those, the ones that went through rather than being refused.
 trims_done() { jq -r 'select(.type=="tool_use") | select(.part.tool=="trim-context") | select(.part.state.status=="completed") | .part.state.input.start // empty' "$1" | wc -l; }
+# References the completed trims wrote, one per line. Records keep only the
+# expanded summary, so the written form is read back from the call itself.
+refs_of() { jq -r 'select(.type=="tool_use") | select(.part.tool=="trim-context") | select(.part.state.status=="completed") | .part.state.input.summary // empty | scan("\\[\\[[^]]*\\]\\]")' "$1"; }
 
 say ""
 say "octrimmer E2E — $MODEL"
@@ -206,7 +218,7 @@ SCHEMA_OK="$(jq -r '[.records[] | has("startRawId") and has("endRawId") and (has
 check "spans addressed by message id" "$SCHEMA_OK" \
     "$(jq -r '.records[0] | "\(.startRawId) → \(.endRawId)"' "$RECORD_FILE")"
 
-REFS="$(jq '[.records[].refs[]] | length' "$RECORD_FILE")"
+REFS="$(refs_of "$TRIM" | wc -l)"
 SUMMARIES="$(jq -r '[.records[].expandedSummary] | join("\n")' "$RECORD_FILE")"
 
 # The harness's core promise: whatever a reference pulled is present unchanged.
@@ -304,7 +316,7 @@ stat_line "attempts needed" "$attempt of $ATTEMPTS"
 stat_line "trim-context calls" "$CALLS ($RECORDS of them trimmed)"
 # More than one trim per run is the post-trim re-trim this scenario never asks for.
 stat_line "trims attempted" "$(trims_of "$TRIM")"
-stat_line "references used" "$(jq -r '[.records[].refs[].ref] | if length == 0 then "none (fell back to prose)" else join(", ") end' "$RECORD_FILE")"
+stat_line "references used" "$(refs_of "$TRIM" | jq -Rrs 'split("\n") | map(select(. != "")) | if length == 0 then "none (fell back to prose)" else join(", ") end')"
 stat_line "summary size" "${#SUMMARIES} bytes"
 
 # Context actually fed to the model per step — uncached input plus cache reads,
