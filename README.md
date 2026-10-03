@@ -4,6 +4,19 @@ An [OpenCode](https://opencode.ai) plugin that brings a `trim-context` tool to y
 
 Octrimmer aims to stay lightweight: it has no nudges and adds nothing extra to the context, except one tool description and one skill. Even that skill loads right before a trim and is forgotten until a new trim is needed.
 
+## Install
+
+Add `"plugin": ["octrimmer"]` to `opencode.json`; opencode fetches it from npm. The skill ships inside the package and the plugin registers it. With nix:
+
+```nix
+octrimmer.url = "github:mlavrinenko/octrimmer";
+# home-manager: every session
+imports = [ inputs.octrimmer.homeManagerModules.default ];
+programs.octrimmer.enable = true;
+# or one project's dev shell
+shellHook = "mkdir -p .opencode/plugins && ln -sfn ${inputs.octrimmer.packages.${system}.default.plugin} .opencode/plugins/";
+```
+
 ## Possible summary placeholders
 
 | **Written** | **Rendered** |
@@ -24,14 +37,11 @@ Octrimmer aims to stay lightweight: it has no nudges and adds nothing extra to t
 ## Behaviour
 
 - A trim runs from the start position to the end of the conversation. The start is the only choice; positions are the conversation as the model sees it, earlier summaries included.
-- An entry renders as its text, its reasoning blocks (marked `[reasoning]`) and its tool calls. A part is addressable by number — `[[#12.2]]`, numbered `.1 .2 …` in that render order.
+- An entry renders as its text, its reasoning blocks (marked `[reasoning]`) and its tool calls. A part is addressable by number — `[[#12.2]]`, numbered `.1 .2 …` in that render order. Flags subtract sections, in any order.
 - References resolve before the cut, so content inside the tail survives only if a reference pulls it. One bad reference refuses the whole trim and lists every failure; a phrase must match exactly one entry, and a cut runs from its first phrase through its second, markers included.
-- Flags combine in any order and subtract a section: `-response`, `-reasoning`, `-tool`, `-output`.
-- History is never modified. On every request the trim re-injects the stored summary, already expanded at trim time, so references are never re-resolved. The messages it hides stay in the session.
-- Entries are named by ID, so compaction and reverts cannot move a trim onto other messages. A record whose messages are out of sight is skipped, never deleted.
+- History is never modified. On every request the trim re-injects the stored summary, already expanded at trim time, so references are never re-resolved. The messages it hides stay in the session. Entries are named by ID, so compaction and reverts cannot move a trim onto other messages; a record whose messages are out of sight is skipped, never deleted.
 - The list is a preview: `query` searches every entry’s full render, reasoning and tool output included, and points at the matching `#N.M` parts; `inspect` maps one entry part by part with sizes and previews; `before` pages older entries. All three are read-only.
-- A newer trim replaces an older one. Two trims in a row, with nothing in between, are refused.
-- State is per session; subagents trim like any other session.
+- A newer trim replaces an older one. Two trims in a row, with nothing in between, are refused. State is per session; subagents trim like any other.
 - `[[` that does not open a valid reference is plain text, so a TOML table or a bash test in a summary stays as written.
 
 ## Example
@@ -78,10 +88,7 @@ Everything before the start is byte-identical, so the provider’s prompt cache 
 
 ## Development
 
-- [mindtape](https://github.com/mlavrinenko/mindtape) for local task tracking.
-- `just check` to find issues.
-- `just e2e` to test it with an opencode instance through scripted scenarios.
-- `just docs` to re-render `README.md`.
+`just check` is the gate, `just e2e` runs scripted scenarios against a real opencode, `just docs` re-renders `README.md`. Tasks live in [mindtape](https://github.com/mlavrinenko/mindtape).
 
 ## Similar projects
 
