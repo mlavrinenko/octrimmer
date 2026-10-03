@@ -3,7 +3,7 @@
     "name": "octrimmer",
     "version": "0.1.0",
     "type": "module",
-    "description": "Manual context trimmer for OpenCode. Cut from a start point; keep prior content verbatim by reference — never re-generate it.",
+    "description": "OpenCode plugin that lets the model trim its own context: a summary replaces finished work and keeps what matters verbatim by reference, never re-generated.",
     "author": "Maxim Lavrinenko",
     "license": "MIT",
     "repository": {
@@ -27,7 +27,12 @@
         "context",
         "trim",
         "compaction",
-        "tokens"
+        "tokens",
+        "llm",
+        "agent",
+        "context-window",
+        "prompt-cache",
+        "summary"
     ],
     "devDependencies": {
         "@opencode-ai/plugin": "^1.4.3",
