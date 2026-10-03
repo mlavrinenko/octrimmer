@@ -15,19 +15,19 @@
 
 #html.elem("h1")[octrimmer]
 
-An #link("https://opencode.ai")[OpenCode] plugin that brings a `trim-context`
-tool to your agents. It lets them replace the last N messages with a summary,
-and that summary can carry placeholders that refer to earlier context, so the
-agent does not generate useless tokens for what can just be copied.
+An #link("https://opencode.ai")[OpenCode] plugin that lets the model shrink its
+own context. When a topic is done, the model calls `trim-context`, and
+everything from a message it picks onward becomes a short summary. What is worth
+keeping, a spec or an error text, the summary pulls by reference, `[[#9]]`;
+octrimmer copies it verbatim, so no tokens go to re-writing it and nothing drifts.
 
-Octrimmer aims to stay lightweight: it has no nudges and adds nothing extra to
-the context, except one tool description and one skill. Even that skill loads
-right before a trim and is forgotten until a new trim is needed.
+No nudges, nothing injected into your prompts: the cost is one tool description,
+plus a skill the model loads only when it is about to trim.
 
 = Install
 
-Add `"plugin": ["octrimmer"]` to `opencode.json`; opencode fetches it from npm.
-The skill ships inside the package and the plugin registers it. With nix:
+Add `"plugin": ["octrimmer"]` to `opencode.json` and restart opencode, which
+fetches it from npm, skill included. With nix:
 
 ```nix
 octrimmer.url = "github:mlavrinenko/octrimmer";
@@ -57,20 +57,18 @@ shellHook = "mkdir -p .opencode/plugins && ln -sfn ${inputs.octrimmer.packages.$
 - References resolve before the cut, so content inside the tail survives only
   if a reference pulls it. One bad reference refuses the whole trim and lists
   every failure; a phrase must match exactly one entry, and a cut runs from its
-  first phrase through its second, markers included.
-- History is never modified. On every request the trim re-injects the stored
-  summary, already expanded at trim time, so references are never re-resolved.
-  The messages it hides stay in the session. Entries are named by ID, so
-  compaction and reverts cannot move a trim onto other messages; a record whose
-  messages are out of sight is skipped, never deleted.
+  first phrase through its second, markers included. A `[[` that opens no valid
+  reference is plain text, so a TOML table or a bash test stays as written.
+- History is never edited: the hidden messages stay in the session, and every
+  request re-injects the summary as expanded at trim time. Trims name messages
+  by ID, so compaction and reverts cannot shift one; a trim whose messages are
+  out of sight is skipped, never deleted.
 - The list is a preview: `query` searches every entry's full render, reasoning
   and tool output included, and points at the matching `#N.M` parts; `inspect`
   maps one entry part by part with sizes and previews; `before` pages older
   entries. All three are read-only.
 - A newer trim replaces an older one. Two trims in a row, with nothing in
   between, are refused. State is per session; subagents trim like any other.
-- `[[` that does not open a valid reference is plain text, so a TOML table or a
-  bash test in a summary stays as written.
 
 = Example
 
@@ -84,17 +82,18 @@ The next request carries:
 
 #sample(facts.seen.join("\n\n"))
 
-Everything before the start is byte-identical, so the provider's prompt cache
-stays warm. Measured on #cache.model: the context fell from #cache.before to
-#cache.after tokens, all #cache.keptRead tokens before the start came from
-cache, the trim cost #cache.trimWrite tokens of cache writes, and the next turn
-was #cache.nextCachedPct% cached. The trim swallows the request that asked for it and the call
-itself; `actionRightAfterTrim` tells the model what comes next.
+The trim swallows the request that asked for it and the call itself;
+`actionRightAfterTrim` tells the model what comes next. Everything before the
+start is byte-identical, so the provider's prompt cache stays warm. Measured on #cache.model: the context fell from #cache.before to #cache.after
+tokens, all #cache.keptRead tokens before the start came from cache, the trim
+cost #cache.trimWrite tokens of cache writes, and the next turn was
+#cache.nextCachedPct% cached.
 
 = Development
 
 `just check` is the gate, `just e2e` runs scripted scenarios against a real
-opencode, `just e2e-cache` measures the prompt cache across a trim, `just docs` re-renders `README.md`. Tasks live in
+opencode, `just e2e-cache` measures the prompt cache across a trim, `just docs`
+re-renders `README.md`, `just ship patch` releases. Tasks live in
 #link("https://github.com/mlavrinenko/mindtape")[mindtape].
 
 = Similar projects
