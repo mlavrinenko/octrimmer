@@ -56,12 +56,17 @@ tasks-check:
 build:
     npx tsup --silent
 
-[doc("Gate, build and publish the tagged version to npm")]
-publish: check release
+# Interactive: shows the notes and asks before pushing. See scripts/ship.sh.
+#
+#   just ship patch|minor|major|X.Y.Z
+[doc("Bump, tag and push a version; CI publishes it to npm")]
+ship level:
+    bash scripts/ship.sh '{{ level }}'
 
 # Refuses unless HEAD carries the tag `v<package.json version>`, so what npm
 # holds is always a commit the flake can pin too. CI runs it after `ci` on a
-# pushed tag (.github/workflows/release.yml), publishing with no token.
+# pushed tag (.github/workflows/release.yml), publishing with no token. By
+# hand, if CI cannot: `just check release`, with `npm login` done.
 [private]
 release: build
     tag="v$(jq -r .version package.json)"; [ "$(git tag --points-at HEAD)" = "$tag" ] || { echo "HEAD is not tagged $tag"; exit 1; }

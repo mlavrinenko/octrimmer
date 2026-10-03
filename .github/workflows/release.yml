@@ -2,7 +2,8 @@ name: release
 
 # Publishes a pushed `v*` tag to npm through trusted publishing: npmjs.com
 # trusts this file by name, so no token is stored anywhere, and provenance
-# links the package to the commit.
+# links the package to the commit. Then opens a GitHub release with the
+# commits since the previous tag as its notes.
 on:
     push:
         tags: ["v*"]
@@ -18,12 +19,18 @@ jobs:
         needs: gate
         runs-on: ubuntu-latest
         permissions:
-            contents: read
+            contents: write
             id-token: write
         steps:
+            # Full history: the notes start at the previous tag.
             - uses: actions/checkout@v7
+              with:
+                  fetch-depth: 0
             - uses: cachix/install-nix-action@v31
               with:
                   extra_nix_config: accept-flake-config = true
             - run: nix develop -c npm ci --no-audit --no-fund --loglevel=error
             - run: nix develop -c just release
+            - run: bash scripts/notes.sh "$GITHUB_REF_NAME" | gh release create "$GITHUB_REF_NAME" --verify-tag --title "$GITHUB_REF_NAME" --notes-file -
+              env:
+                  GH_TOKEN: ${{ github.token }}
